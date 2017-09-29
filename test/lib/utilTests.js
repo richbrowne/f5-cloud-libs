@@ -64,7 +64,6 @@ var urlParse;
 // http mock
 var httpGet;
 
-
 var getSavedArgs = function() {
     return fs.readFileSync('/tmp/rebootScripts/' + UTIL_ARGS_TEST_FILE + '.sh').toString();
 };
@@ -92,11 +91,25 @@ module.exports = {
         },
 
         testMap: function(test) {
-            var container = [];
+            var container = {};
             var input = 'foo:bar, hello:world';
             util.map(input, container);
+            test.deepEqual(container, {foo: 'bar', hello: 'world'});
             input = 'fooz:bazz';
             util.map(input, container);
+            test.deepEqual(container, {foo: 'bar', hello: 'world', fooz: 'bazz'});
+            input = 'hello:goodbye';
+            util.map(input, container);
+            test.deepEqual(container, {foo: 'bar', hello: 'goodbye', fooz: 'bazz'});
+            test.done();
+        },
+
+        testMapArray: function(test) {
+            var container = [];
+            var input = 'foo:bar, hello:world';
+            util.mapArray(input, container);
+            input = 'fooz:bazz';
+            util.mapArray(input, container);
             test.strictEqual(container[0].foo, 'bar');
             test.strictEqual(container[0].hello, 'world');
             test.strictEqual(container[1].fooz, 'bazz');
@@ -198,6 +211,7 @@ module.exports = {
 
             fs.writeFileSync(passwordFile, password, {encoding: 'ascii'});
 
+            test.expect(1);
             util.getDataFromUrl('file://' + passwordFile)
                 .then(function(readPassword) {
                     test.strictEqual(readPassword, password);
@@ -222,9 +236,36 @@ module.exports = {
 
                 httpMock.setResponse(password);
 
+                test.expect(2);
                 util.getDataFromUrl('http://www.example.com')
                     .then(function(readPassword) {
+                        test.strictEqual(httpMock.lastRequest.path, '/');
                         test.strictEqual(readPassword, password);
+                    })
+                    .catch(function(err) {
+                        test.ok(false, err);
+                    })
+                    .finally(function() {
+                        delete require.cache.http;
+                        test.done();
+                    });
+            },
+
+            testPathAndHeaders: function(test) {
+                var httpMock = require('../testUtil/httpMock');
+
+                var path = '/foo/bar';
+                var headers = {headerName: 'headerValue'};
+
+                require.cache.http = {
+                    exports: httpMock
+                };
+
+                test.expect(2);
+                util.getDataFromUrl('http://www.example.com' + path, {headers: headers})
+                    .then(function() {
+                        test.strictEqual(httpMock.lastRequest.path, path);
+                        test.deepEqual(httpMock.lastRequest.headers, headers);
                     })
                     .catch(function(err) {
                         test.ok(false, err);
@@ -245,6 +286,7 @@ module.exports = {
 
                 httpMock.setResponse(response, {'content-type': 'application/json'});
 
+                test.expect(1);
                 util.getDataFromUrl('http://www.example.com')
                     .then(function(data) {
                         test.deepEqual(data, response);
@@ -268,6 +310,7 @@ module.exports = {
 
                 httpMock.setResponse(response, {'content-type': 'application/json'});
 
+                test.expect(1);
                 util.getDataFromUrl('http://www.example.com')
                     .then(function() {
                         test.ok(false, 'Should have thrown bad json');
@@ -781,6 +824,7 @@ module.exports = {
                 return deferred.promise;
             };
 
+            test.expect(1);
             util.tryUntil(this, util.NO_RETRY, func)
                 .then(function() {
                     test.strictEqual(funcCount, 1);
@@ -788,7 +832,7 @@ module.exports = {
                 });
         },
 
-        testCalledMultple: function(test) {
+        testCalledMultiple: function(test) {
             var retries = 3;
 
             var func = function() {
@@ -803,10 +847,39 @@ module.exports = {
                     deferred.resolve();
                 }
 
+                return deferred.promise;
+            };
+
+            test.expect(1);
+            util.tryUntil(this, {maxRetries: retries, retryIntervalMs: 10}, func)
+                .then(function() {
+                    test.strictEqual(funcCount, retries);
+                    test.done();
+                });
+        },
+
+        testWithThrow: function(test) {
+            var retries = 3;
+
+            var func = function() {
+                var deferred = q.defer();
+
+                funcCount++;
+
+                if (funcCount === 1) {
+                    deferred.reject();
+                }
+                else if (funcCount > 1 && funcCount < retries) {
+                    throw new Error('foo');
+                }
+                else if (funcCount === retries) {
+                    deferred.resolve();
+                }
 
                 return deferred.promise;
             };
 
+            test.expect(1);
             util.tryUntil(this, {maxRetries: retries, retryIntervalMs: 10}, func)
                 .then(function() {
                     test.strictEqual(funcCount, retries);

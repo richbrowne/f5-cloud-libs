@@ -61,7 +61,7 @@
                     .option('--config-sync-ip <config_sync_ip>', 'IP address for config sync.')
                     .option('--cloud <provider>', 'Cloud provider (aws | azure | etc.). Optionally use this if passwords are stored in cloud storage. This replaces the need for --remote-user/--remote-password(-url). An implemetation of autoscaleProvider must exist at the correct location.')
                     .option('    --master', 'If using a cloud provider, indicates that this is the master and credentials should be stored.')
-                    .option('    --provider-options <cloud_options>', 'Any options (JSON stringified) that are required for the specific cloud provider.', util.map, providerOptions)
+                    .option('    --provider-options <cloud_options>', 'Any options (JSON stringified) that are required for the specific cloud provider.', util.mapArray, providerOptions)
                     .option('--create-group', 'Create a device group with the options:')
                     .option('    --device-group <device_group>', '    Name of the device group.')
                     .option('    --sync-type <sync_type>', '    Type of sync this cluster is for ("sync-only" | "sync-failover").')
@@ -152,7 +152,7 @@
                         ipc.send(signals.CLUSTER_RUNNING);
 
                         // Create the bigIp client object
-                        bigIp = testOpts.bigIp || new BigIp({logger: logger});
+                        bigIp = testOpts.bigIp || new BigIp({loggerOptions: loggerOptions});
 
                         logger.info("Initializing BIG-IP.");
                         return bigIp.init(
@@ -236,6 +236,7 @@
                                                              options.remoteHost,
                                                              options.remoteUser,
                                                              options.remotePassword || options.remotePasswordUrl,
+                                                             false,
                                                              {
                                                                 remotePort: options.remotePort,
                                                                 sync: options.sync,

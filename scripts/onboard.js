@@ -41,11 +41,13 @@
             var ipc = require('../lib/ipc');
             var signals = require('../lib/signals');
             var util = require('../lib/util');
+            var metricsCollector = require('../lib/metricsCollector');
             var dbVars = {};
             var modules = {};
             var rootPasswords = {};
             var updateUsers = [];
             var loggerOptions = {};
+            var metrics = {};
             var loggableArgs;
             var logger;
             var logFileName;
@@ -54,11 +56,14 @@
             var index;
             var i;
 
+            const METRICS_TRACKING_ID = 'UA-107165927-1';
+
             var DEFAULT_LOG_FILE = '/tmp/onboard.log';
             var ARGS_FILE_ID = 'onboard_' + Date.now();
 
             var KEYS_TO_MASK = ['-p', '--password', '--set-password', '--set-root-password', '--big-iq-password'];
             var REQUIRED_OPTIONS = ['host', 'user'];
+
 
             options = require('./commonOptions');
             testOpts = testOpts || {};
@@ -98,10 +103,11 @@
                     .option('-g, --global-setting <name:value>', 'Set global setting <name> to <value>. For multiple settings, use multiple -g entries.', util.pair, globalSettings)
                     .option('-d, --db <name:value>', 'Set db variable <name> to <value>. For multiple settings, use multiple -d entries.', util.pair, dbVars)
                     .option('--set-root-password <old:old_password,new:new_password>', 'Set the password for the root user from <old_password> to <new_password>.', parseRootPasswords)
-                    .option('--update-user <user:user,password:password,passwordUrl:passwordUrl,role:role,shell:shell>', 'Update user password (or password from passwordUrl), or create user with password, role, and shell. Role and shell are only valid on create.', util.map, updateUsers)
+                    .option('--update-user <user:user,password:password,passwordUrl:passwordUrl,role:role,shell:shell>', 'Update user password (or password from passwordUrl), or create user with password, role, and shell. Role and shell are only valid on create.', util.mapArray, updateUsers)
                     .option('-m, --module <name:level>', 'Provision module <name> to <level>. For multiple modules, use multiple -m entries.', util.pair, modules)
                     .option('--ping [address]', 'Do a ping at the end of onboarding to verify that the network is up. Default address is f5.com')
                     .option('--update-sigs', 'Update ASM signatures')
+                    .option('--metrics [customerId:unique_id, deploymentId:deployment_id, templateName:template_name, templateVersion:template_version, cloudName:<aws | azure | gce | etc.>, region:region, bigIpVersion:big_ip_version, licenseType:<byol | payg>]', 'Optional usage metrics to collect. Customer ID should not identify a specific customer.', util.map, metrics)
                     .parse(argv);
 
                 loggerOptions.console = options.console;
@@ -115,6 +121,7 @@
                 logger = Logger.getLogger(loggerOptions);
                 ipc.setLoggerOptions(loggerOptions);
                 util.setLoggerOptions(loggerOptions);
+                metricsCollector.setLoggerOptions(loggerOptions);
 
                 // Log the input, but don't log passwords
                 loggableArgs = argv.slice();
@@ -156,6 +163,17 @@
                         delete globalSettings.hostName;
                         delete globalSettings.hostname;
                     }
+                }
+
+                try {
+                    if (Object.keys(metrics).length > 0) {
+                        metrics.action = 'onboard';
+                        metrics.cloudLibsVersion = options.version();
+                        metricsCollector.upload(METRICS_TRACKING_ID, metrics);
+                    }
+                }
+                catch (err) {
+                    logger.debug('Metrics collection failed:', err);
                 }
 
                 // Start processing...
