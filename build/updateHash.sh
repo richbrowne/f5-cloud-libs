@@ -19,7 +19,7 @@ DOWNLOAD_LOCATION=/tmp/"$FILE_NAME"
 
 if [[ "$BRANCH" =~ $RELEASE || "$BRANCH" =~ $HOTFIX ]]; then
     echo Using build artifact
-    URL="https://gitswarm.example.com/api/v3/projects/${PROJECT_ID}/builds/artifacts/$BRANCH/download?job=package"
+    URL="https://gitswarm.f5net.com/api/v3/projects/${PROJECT_ID}/builds/artifacts/$BRANCH/download?job=package"
     echo URL "$URL"
     curl -s --insecure -o "$DOWNLOAD_LOCATION" -H "PRIVATE-TOKEN: $API_TOKEN" "$URL"
 else
