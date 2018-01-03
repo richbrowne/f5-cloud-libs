@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 F5 Networks, Inc.
+ * Copyright 2016-2018 F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,12 +62,14 @@
             var ipc = require('../lib/ipc');
             var loggerOptions = {};
             var providerOptions = [];
+            var externalTag = {};
             var bigIp;
             var loggableArgs;
             var logFileName;
             var masterInstance;
             var masterIid;
-            var masterExpired;
+            var masterBad;
+            var masterBadReason;
             var newMaster;
             var Provider;
             var provider;
@@ -93,6 +95,8 @@
                 .option('    --no-auto-sync', '    Enable auto sync. Default false (auto sync).')
                 .option('    --no-save-on-auto-sync', '    Enable save on sync if auto sync is enabled. Default false (save on auto sync).')
                 .option('--block-sync', 'If this device is master, do not allow other devices to sync to us. This prevents other devices from syncing to it until we are called again with --cluster-action unblock-sync.')
+                .option('--static', 'Indicates that this instance is not autoscaled. Default false (instance is autoscaled)')
+                .option('--external-tag <tag>', 'If there are instances in the autoscale cluster that are not autoscaled, the cloud tag applied to those instances. Format \'key:<tag_key>,value:<tag_value>\'', util.map, externalTag)
                 .option('--license-pool', 'BIG-IP was licensed from a BIG-IQ license pool. This is so licenses can be revoked when BIG-IPs are scaled in. Supply the following:')
                 .option('    --big-iq-host <ip_address or FQDN>', '    IP address or FQDN of BIG-IQ')
                 .option('    --big-iq-user <user>', '    BIG-IQ admin user name')
@@ -169,7 +173,10 @@
                     this.instanceId = response;
 
                     logger.info('Getting info on all instances.');
-                    return provider.getInstances();
+                    if (Object.keys(externalTag).length === 0) {
+                        externalTag = undefined;
+                    }
+                    return provider.getInstances({externalTag: externalTag});
                 }.bind(this))
                 .then(function (response) {
                     this.instances = response || {};
@@ -217,15 +224,39 @@
                     return provider.bigIpReady();
                 }.bind(this))
                 .then(function() {
+                    return bigIp.deviceInfo();
+                }.bind(this))
+                .then(function(response) {
+                    this.instance.version = response.version;
+                    markVersions(this.instances);
+                    return provider.putInstance(this.instanceId, this.instance);
+                }.bind(this))
+                .then(function() {
                     var status = AutoscaleProvider.STATUS_UNKNOWN;
 
                     logger.info('Determining master instance id.');
                     masterInstance = getMasterInstance(this.instances);
 
                     if (masterInstance) {
-                        // check to see if the master instance is currently visible to the cloud
-                        // provider
-                        if (masterInstance.instance.providerVisible) {
+                        if (!masterInstance.instance.versionOk) {
+                            masterBadReason = 'version not most recent in group';
+                            logger.silly(masterBadReason);
+                            status = AutoscaleProvider.STATUS_VERSION_NOT_UP_TO_DATE;
+                            masterBad = true;
+                        }
+                        // if there are external instances in the mix, make sure the master
+                        // is one of them
+                        else if (!isMasterExternalValueOk(masterInstance.id, this.instances)) {
+                            masterBadReason = 'master is not external, but there are external instances';
+                            logger.silly(masterBadReason);
+                            status = AutoscaleProvider.STATUS_NOT_EXTERNAL;
+                            masterBad = true;
+                        }
+                        else if (!masterInstance.instance.providerVisible) {
+                            // The cloud provider does not currently see this instance
+                            status = AutoscaleProvider.STATUS_NOT_IN_CLOUD_LIST;
+                        }
+                        else {
                             masterIid = masterInstance.id;
 
                             if (this.instanceId === masterIid) {
@@ -234,29 +265,24 @@
 
                             status = AutoscaleProvider.STATUS_OK;
                         }
-                        else {
-                            // The cloud provider does not currently see this instance,
-                            // check to see if it's been gone for a while or if this is a
-                            // random error
-                            status = AutoscaleProvider.STATUS_NOT_IN_CLOUD_LIST;
-                        }
                     }
 
                     return updateMasterStatus.call(this, provider, status);
                 }.bind(this))
                 .then(function() {
-                    if (masterInstance && isMasterExpired(this.instance)) {
-                        masterExpired = true;
-                        return provider.masterExpired(masterInstance.id, this.instances);
+                    // If the master is not visible, check to see if it's been gone
+                    // for a while or if this is a random error
+                    if (masterInstance && !masterBad && isMasterExpired(this.instance)) {
+                        masterBad = true;
+                        masterBadReason = 'master is expired';
                     }
-                }.bind(this))
-                .then(function() {
+
                     if (masterIid) {
                         logger.info('Possible master ID:', masterIid);
                         return provider.isValidMaster(masterIid, this.instances);
                     }
-                    else if (masterExpired) {
-                        logger.info('Old master expired.');
+                    else if (masterBad) {
+                        logger.info('Old master no longer valid:', masterBadReason);
                     }
                     else {
                         logger.info('No master ID found.');
@@ -264,7 +290,7 @@
                 }.bind(this))
                 .then(function(validMaster) {
 
-                    logger.silly('validMaster:', validMaster, ', masterInstance: ', masterInstance, ', masterExpired:', masterExpired);
+                    logger.silly('validMaster:', validMaster, ', masterInstance: ', masterInstance, ', masterBad:', masterBad);
 
                     if (validMaster) {
                         // true validMaster means we have a valid masterIid, just pass it on
@@ -281,7 +307,7 @@
                         // if no master, master is visible or expired, elect, otherwise, wait
                         if (!masterInstance ||
                             masterInstance.instance.providerVisible ||
-                            masterExpired) {
+                            masterBad) {
 
                             logger.info('Electing master.');
                             return provider.electMaster(this.instances);
@@ -294,9 +320,7 @@
                     if (response) {
                         // we just elected a master
                         masterIid = response;
-                        if (this.instanceId === masterIid) {
-                            this.instance.isMaster = true;
-                        }
+                        this.instance.isMaster = (this.instanceId === masterIid);
                         logger.info('Using master ID:', masterIid);
                         logger.info('This instance', (this.instance.isMaster ? 'is' : 'is not'), 'master');
 
@@ -343,9 +367,9 @@
                     if (this.instance.status === INSTANCE_STATUS_OK) {
                         switch(options.clusterAction) {
                             case 'join':
-                                return handleJoin.call(this, provider, bigIp, masterIid, masterExpired, options);
+                                return handleJoin.call(this, provider, bigIp, masterIid, masterBad, options);
                             case 'update':
-                                return handleUpdate.call(this, provider, bigIp, masterIid, masterExpired, options);
+                                return handleUpdate.call(this, provider, bigIp, masterIid, masterBad, options);
                             case 'unblock-sync':
                                 logger.info("Cluster action UNBLOCK-SYNC");
                                 return bigIp.cluster.configSyncIp(this.instance.privateIp);
@@ -394,7 +418,7 @@
      *
      * Called with this bound to the caller
      */
-    var handleJoin = function(provider, bigIp, masterIid, masterExpired, options) {
+    var handleJoin = function(provider, bigIp, masterIid, masterBad, options) {
         var deferred = q.defer();
 
         logger.info('Cluster action JOIN');
@@ -474,10 +498,10 @@
      *
      * Called with this bound to the caller
      */
-    var handleUpdate = function(provider, bigIp, masterIid, masterExpired, options) {
+    var handleUpdate = function(provider, bigIp, masterIid, masterBad, options) {
         logger.info('Cluster action UPDATE');
 
-        if (this.instance.isMaster && !masterExpired) {
+        if (this.instance.isMaster && !masterBad) {
             return checkForDisconnectedDevices.call(this, bigIp);
         }
         else if (!this.instance.isMaster) {
@@ -487,7 +511,7 @@
             }
 
             // If there is a new master, join the cluster
-            if (masterExpired && masterIid) {
+            if (masterBad && masterIid) {
                 return joinCluster.call(this, provider, bigIp, masterIid, options);
             }
             else if (masterIid) {
@@ -979,6 +1003,68 @@
                     instance: instances[instanceId]
                 };
             }
+        }
+    };
+
+    /**
+     * Checks that master instance has the most recent
+     * version of all the BIG-IP instances
+     *
+     * @param {Object} instances - Instances map
+     */
+    var markVersions = function(instances) {
+        var highestVersion = '0.0.0';
+        var instance;
+        var instanceId;
+
+        for (instanceId in instances) {
+            instance = instances[instanceId];
+            if (instance.version && util.versionCompare(instance.version, highestVersion) > 0) {
+                highestVersion = instance.version;
+            }
+        }
+
+        for (instanceId in instances) {
+            instance = instances[instanceId];
+            if (!instance.version || util.versionCompare(instance.version, highestVersion) === 0) {
+                instance.versionOk = true;
+            }
+            else {
+                instance.versionOk = false;
+            }
+        }
+    };
+
+    /**
+     * Checks that if there are external instances, the master is
+     * one of them
+     *
+     * @param {String} masterId  - Instance ID of master
+     * @param {Object} instances - Instances map
+     *
+     * @returns {Boolean} True if there are no external instances or
+     *                    if there are external instances and the master is
+     *                    one of them
+     */
+    var isMasterExternalValueOk = function(masterId, instances) {
+        var instanceIds = Object.keys(instances);
+        var instance;
+        var hasExternal;
+        var i;
+
+        for (i = 0; i < instanceIds.length; ++i) {
+            instance = instances[instanceIds[i]];
+            if (instance.external) {
+                hasExternal = true;
+                break;
+            }
+        }
+
+        if (hasExternal) {
+            return instances[masterId].external ? true : false;
+        }
+        else {
+            return true;
         }
     };
 

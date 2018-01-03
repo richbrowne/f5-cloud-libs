@@ -177,6 +177,11 @@ module.exports = {
         test.done();
     },
 
+    testIpToNumber: function(test) {
+        test.strictEqual(util.ipToNumber('10.11.12.13'), 168496141);
+        test.done();
+    },
+
     testWriteDataToFile: {
         setUp: function(callback) {
             fs.writeFile = function(file, data, options, cb) {

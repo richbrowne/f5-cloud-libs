@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 F5 Networks, Inc.
+ * Copyright 2016-2018 F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,8 @@ ProviderMock.prototype.isValidMaster = function() {
     return q(true);
 };
 
-ProviderMock.prototype.electMaster = function() {
+ProviderMock.prototype.electMaster = function(instances) {
+    this.functionCalls.instancesSent = instances;
     this.functionCalls.electMaster = true;
     return q();
 };
@@ -184,6 +185,40 @@ module.exports = {
         testIsValidMasterCalledWithInstances: function(test) {
             autoscale.run(argv, testOptions, function() {
                 test.ok(providerMock.functionCalls.isValidMaster);
+                test.done();
+            });
+        },
+
+        testElectCalledWithVersionsMarked: function(test) {
+            providerMock.isValidMaster = function() {
+                return q(false);
+            };
+
+            bigIpMock.deviceInfo = function() {
+                return {
+                    version: '4.5.6'
+                };
+            };
+
+            instances = {
+                "one": {
+                    isMaster: false,
+                    hostname: 'host1',
+                    privateIp: '1.2.3.4',
+                    providerVisible: true,
+                    version: '1.2.3'
+                },
+                "two": {
+                    isMaster: true,
+                    hostname: 'host2',
+                    privateIp: '5.6.7.8',
+                    providerVisible: true
+                }
+            };
+
+            autoscale.run(argv, testOptions, function() {
+                test.strictEqual(providerMock.functionCalls.instancesSent.one.versionOk, false);
+                test.strictEqual(providerMock.functionCalls.instancesSent.two.versionOk, true);
                 test.done();
             });
         },

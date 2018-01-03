@@ -200,6 +200,8 @@ Runs autoscale code to elect master and cluster
           --no-auto-sync                              Enable auto sync. Default false (auto sync).
           --no-save-on-auto-sync                      Enable save on sync if auto sync is enabled. Default false (save on auto sync).
       --block-sync                                If this device is master, do not allow other devices to sync to us. This prevents other devices from syncing to it until we are called again with --cluster-action unblock-sync.
+      --static                                    Indicates that this instance is not autoscaled. Default false (instance is autoscaled)
+      --external-tag <tag>                        If there are instances in the autoscale cluster that are not autoscaled, the cloud tag applied to those instances. Format 'key:<tag_key>,value:<tag_value>'
       --license-pool                              BIG-IP was licensed from a BIG-IQ license pool. This is so licenses can be revoked when BIG-IPs are scaled in. Supply the following:
           --big-iq-host <ip_address or FQDN>          IP address or FQDN of BIG-IQ
           --big-iq-user <user>                        BIG-IQ admin user name
