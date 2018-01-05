@@ -272,9 +272,9 @@
                         logger.error("BIG-IP cluster failed", err);
 
                         if (err instanceof ActiveError) {
-                            logger.warn("BIG-IP active check failed. Rebooting.");
+                            logger.warn("BIG-IP active check failed.");
                             rebooting = true;
-                            return util.reboot(bigIp);
+                            return util.reboot(bigIp, {signalOnly: (options.reboot ? false : true)});
                         }
                     })
                     .done(function(response) {

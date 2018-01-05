@@ -415,14 +415,9 @@
                     })
                     .then(function(response) {
                         if (response === true) {
-                            if (options.reboot) {
-                                logger.warn('Reboot required. Rebooting...');
-                                rebooting = true;
-                                return util.reboot(bigIp);
-                            }
-                            else {
-                                logger.warn('Reboot required. Skipping due to --no-reboot option.');
-                            }
+                            logger.warn('Reboot required.');
+                            rebooting = true;
+                            return util.reboot(bigIp, {signalOnly: (options.reboot ? false : true)});
                         }
                     })
                     .catch(function(err) {
@@ -430,9 +425,9 @@
                         logger.error("BIG-IP onboard failed:", err.message);
 
                         if (err instanceof ActiveError) {
-                            logger.warn("BIG-IP active check failed. Rebooting.");
+                            logger.warn("BIG-IP active check failed.");
                             rebooting = true;
-                            return util.reboot(bigIp);
+                            return util.reboot(bigIp, {signalOnly: (options.reboot ? false : true)});
                         }
                     })
                     .done(function(response) {

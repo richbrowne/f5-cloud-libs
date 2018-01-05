@@ -1,9 +1,9 @@
 cli script /Common/verifyHash {
 proc script::run {} {
         if {[catch {
-            set hashes(f5-cloud-libs.tar.gz) 71b6310fce4a3ee0e018ff7675ed62fea8ce38514b51536f1e598b20ad2a3235e083a8d70a0bed10967f19003d86538daa1567884bfe1f1fe8e0cf36d78fcb71
+            set hashes(f5-cloud-libs.tar.gz) b2b50b034a4586dfedb0fc6f8d6c98fae0d63909e5e048d3b042305e06afe28e9ea97fa963ebf28d466d3cab4aab1e47c18b6871cf5fd41bb1c1671349a844b5
             set hashes(f5-cloud-libs-aws.tar.gz) 1a4ba191e997b2cfaaee0104deccc0414a6c4cc221aedc65fbdec8e47a72f1d5258b047d6487a205fa043fdbd6c8fcb1b978cac36788e493e94a4542f90bd92b
-            set hashes(f5-cloud-libs-azure.tar.gz) f3b24e383b81090996f051279400679f26eb7c0ec1c1de3d712b446eea4a2cbd7d5edb4e1638033078339ba606451b35afaaa0a9e71fd04de3e3151434917b5d
+            set hashes(f5-cloud-libs-azure.tar.gz) 419b97bb4b83955ed635777b044fa5309cbfa20857b385f2c9448651557ae76b4f58386e43c7560dd938f0accdfed4253ef3026e826a759cb5b0510eb5a57d05
             set hashes(f5-cloud-libs-gce.tar.gz) 6ef33cc94c806b1e4e9e25ebb96a20eb1fe5975a83b2cd82b0d6ccbc8374be113ac74121d697f3bfc26bf49a55e948200f731607ce9aa9d23cd2e81299a653c1
             set hashes(f5-cloud-libs-openstack.tar.gz) fb6d63771bf0c8d9cae9271553372f7fb50ce2e7a653bb3fb8b7d57330a18d72fa620e844b579fe79c8908a3873b2d33ee41803f23ea6c5dc9f7d7e943e68c3a
             set hashes(asm-policy-linux.tar.gz) 63b5c2a51ca09c43bd89af3773bbab87c71a6e7f6ad9410b229b4e0a1c483d46f1a9fff39d9944041b02ee9260724027414de592e99f4c2475415323e18a72e0
