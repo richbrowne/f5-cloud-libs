@@ -23,8 +23,8 @@ var autoscale;
 var fsMock;
 var childProcessMock;
 var BigIp;
-var cryptoUtilMock;
 var icontrolMock;
+var cloudUtilMock;
 var ipcMock;
 var argv;
 var providerMock;
@@ -32,6 +32,9 @@ var bigIpMock;
 var testOptions;
 var instances;
 var instanceId;
+
+var unlinkSync;
+var writeFile;
 
 // Our tests cause too many event listeners. Turn off the check.
 var options = require('commander');
@@ -83,9 +86,6 @@ ProviderMock.prototype.putPublicKey = function() {
     return q();
 };
 
-// Don't let autoscale exit - we need the nodeunit process to run to completion
-process.exit = function() {};
-
 module.exports = {
     setUp: function(callback) {
         argv = ['node', 'autoscale', '--password', 'foobar', '--device-group', deviceGroup, '--cloud', 'aws', '--log-level', 'none'];
@@ -107,11 +107,15 @@ module.exports = {
         };
 
         fsMock = require('fs');
-        childProcessMock = require('child_process');
         BigIp = require('../../lib/bigIp');
+        cloudUtilMock = require('../../lib/util');
         icontrolMock = require('../testUtil/icontrolMock');
-        cryptoUtilMock = require('../../lib/cryptoUtil');
         ipcMock = require('../../lib/ipc');
+
+        cloudUtilMock.logAndExit = function() {};
+
+        unlinkSync = fsMock.unlinkSync;
+        writeFile = fsMock.writeFile;
 
         providerMock = new ProviderMock();
 
@@ -137,19 +141,18 @@ module.exports = {
                 callback();
             });
 
-        cryptoUtilMock = {
-            generateKeyPair: function() {
-                return q();
-            }
-        };
-
         autoscale  = require('../../scripts/autoscale');
     },
 
     tearDown: function(callback) {
+        fsMock.unlinkSync = unlinkSync;
+        fsMock.writeFile = writeFile;
+
+        cloudUtilMock.removeDirectorySync(ipcMock.signalBasePath);
         Object.keys(require.cache).forEach(function(key) {
             delete require.cache[key];
         });
+
         callback();
     },
 
@@ -253,10 +256,6 @@ module.exports = {
             };
 
             fsMock.unlinkSync = function() {};
-
-            childProcessMock.execFile = function(file, args, cb) {
-                cb();
-            };
 
             bigIpMock.loadUcs = function() {
                 return q();
@@ -378,9 +377,9 @@ module.exports = {
 
             fsMock.unlinkSync = function() {};
 
-            childProcessMock.execFile = function(file, args, cb) {
-                cb();
-            };
+            // childProcessMock.execFile = function(file, args, cb) {
+            //     cb();
+            // };
 
             bigIpMock.loadUcs = function() {
                 return q();

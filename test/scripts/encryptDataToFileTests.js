@@ -26,10 +26,10 @@ var cryptoUtilMock;
 var utilMock;
 var argv;
 var encryptData;
+var realWriteFile;
+var realReadFile;
 
 var generateAndInstallKeyPairCalled;
-
-var realExit = process.exit;
 
 module.exports = {
     setUp: function(callback) {
@@ -38,9 +38,6 @@ module.exports = {
         localKeyUtilMock = require('../../lib/localKeyUtil');
         ipcMock = require('../../lib/ipc');
         cryptoUtilMock = require('../../lib/cryptoUtil');
-
-        // Don't let script exit - we need the nodeunit process to run to completion
-        process.exit = function() {};
 
         utilMock.logAndExit = function() {};
 
@@ -56,6 +53,8 @@ module.exports = {
             return q();
         };
 
+        realReadFile = fsMock.readFile;
+        realWriteFile = fsMock.writeFile;
         fsMock.writeFile = function(file, data, options, cb) {
             cb();
         };
@@ -76,10 +75,13 @@ module.exports = {
     },
 
     tearDown: function(callback) {
+        utilMock.removeDirectorySync(ipcMock.signalBasePath);
+        fsMock.readFile = realReadFile;
+        fsMock.writeFile = realWriteFile;
+
         Object.keys(require.cache).forEach(function(key) {
             delete require.cache[key];
         });
-        process.exit = realExit;
         callback();
     },
 

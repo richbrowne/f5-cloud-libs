@@ -15,60 +15,81 @@
  */
 'use strict';
 
+const realExit = process.exit;
+
 var fs = require('fs');
 var q = require('q');
-var ipc;
+var functionsCalled;
 var onboard;
+var ipcMock;
 var utilMock;
+var exitCode;
 
 var bigIpMock = {
     init: function() {
+        functionsCalled.bigIp.init = arguments;
         return q();
     },
 
     list: function() {
+        functionsCalled.bigIp.list = arguments;
         return q();
     },
 
     modify: function() {
+        functionsCalled.bigIp.modify = arguments;
         return q();
     },
 
     create: function() {
+        functionsCalled.bigIp.create = arguments;
         return q();
     },
 
     delete: function() {
+        functionsCalled.bigIp.delete = arguments;
         return q();
     },
 
     ready: function() {
+        functionsCalled.bigIp.ready = arguments;
         return q();
     },
 
     save: function() {
+        functionsCalled.bigIp.save = arguments;
         return q();
     },
 
     active: function() {
+        functionsCalled.bigIp.active = arguments;
         return q();
     },
 
     rebootRequired: function() {
+        functionsCalled.bigIp.rebootRequired = arguments;
         return q(true);
     },
 
     reboot: function() {
+        functionsCalled.bigIp.reboot = arguments;
         rebootRequested = true;
         return q();
     },
 
     onboard: {
         globalSettings: function() {
+            functionsCalled.bigIp.onboard.globalSettings = arguments;
+            return q();
+        },
+
+        password: function() {
+            functionsCalled.bigIp.onboard.password = arguments;
             return q();
         },
 
         updateUser: function(user, password, role, shell) {
+            functionsCalled.bigIp.onboard.updateUser = arguments;
             this.updatedUsers = this.updatedUsers || [];
             this.updatedUsers.push({
                 user: user,
@@ -81,6 +102,7 @@ var bigIpMock = {
         },
 
         sslPort: function() {
+            functionsCalled.bigIp.onboard.sslPort = arguments;
             return q();
         }
     },
@@ -98,23 +120,19 @@ var signalsSent;
 var options = require('commander');
 options.setMaxListeners(0);
 
-// Don't let onboard exit - we need the nodeunit process to run to completion
-process.exit = function() {};
-
 module.exports = {
     setUp: function(callback) {
         signalsSent = [];
 
-        ipc = require('../../lib/ipc');
+        ipcMock = require('../../lib/ipc');
 
         // Just resolve right away, otherwise these tests never exit
-        ipc.once = function() {
-            var deferred = q.defer();
-            deferred.resolve();
-            return deferred;
+        ipcMock.once = function() {
+            functionsCalled.ipc.once = arguments;
+            return q();
         };
 
-        ipc.send = function(signal) {
+        ipcMock.send = function(signal) {
             signalsSent.push(signal);
         };
 
@@ -122,51 +140,108 @@ module.exports = {
         onboard = require('../../scripts/onboard');
         argv = ['node', 'onboard', '--host', '1.2.3.4', '-u', 'foo', '-p', 'bar', '--log-level', 'none'];
         rebootRequested = false;
+        functionsCalled = {
+            bigIp: {
+                onboard: {}
+            },
+            ipc: {}
+        };
+
+        utilMock.logAndExit = function(message, level, code) {
+            exitCode = code;
+            if (exitCode) {
+                 throw new Error('exit with code ' + exitCode);
+            }
+        };
+        exitCode = undefined;
+
         callback();
     },
 
     tearDown: function(callback) {
+        process.exit = realExit;
+        utilMock.removeDirectorySync(ipcMock.signalBasePath);
         Object.keys(require.cache).forEach(function(key) {
             delete require.cache[key];
         });
         callback();
     },
 
-    testCollect: function(test) {
-        argv.push('--ntp', 'one', '--ntp', 'two');
+    testRequiredOptions: {
+        testNoHost: function(test) {
+            argv = ['node', 'onboard', '-u', 'foo', '-p', 'bar', '--log-level', 'none'];
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(exitCode, 1);
+                test.done();
+            });
+        },
+
+        testNoUser: function(test) {
+            argv = ['node', 'onboard', '--host', '1.2.3.4', '-p', 'bar', '--log-level', 'none'];
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(exitCode, 1);
+                test.done();
+            });
+        },
+
+        testNoPassword: function(test) {
+            argv = ['node', 'onboard', '--host', '1.2.3.4', '-u', 'foo', '--log-level', 'none'];
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(exitCode, 1);
+                test.done();
+            });
+        }
+    },
+
+    testWaitFor: function(test) {
+        argv.push('--wait-for', 'foo');
+
+        test.expect(1);
         onboard.run(argv, testOptions, function() {
-            test.strictEqual(onboard.getOptions().ntp.length, 2);
+            test.strictEqual(functionsCalled.ipc.once[0], 'foo');
             test.done();
         });
     },
 
-    testPairSimple: function(test) {
-        argv.push('--global-setting', 'name1:value1');
+    testBackground: function(test) {
+        var runInBackgroundCalled = false;
+        utilMock.runInBackgroundAndExit = function() {
+            runInBackgroundCalled = true;
+        };
+
+        argv.push('--background');
+
+        test.expect(1);
         onboard.run(argv, testOptions, function() {
-            test.strictEqual(onboard.getGlobalSettings().name1, 'value1');
+            test.ok(runInBackgroundCalled);
             test.done();
         });
     },
 
-    testPairSpaces: function(test) {
-        argv.push('--global-setting', ' name1 : value1 ');
-        onboard.run(argv, testOptions, function() {
-            test.strictEqual(onboard.getGlobalSettings().name1, 'value1');
-            test.done();
-        });
-    },
+    testGlobalSettingsAndHostname: function(test) {
+        var hostnameSet;
+        bigIpMock.onboard.hostname = function(hostname) {
+            hostnameSet = hostname;
+        };
 
-    testPairMultiple: function(test) {
-        argv.push('--global-setting', 'name1:value1');
-        argv.push('--global-setting', 'name2:value2');
+        argv.push('--hostname', 'hostname1', '--global-setting', 'hostname:hostname2');
+
+        test.expect(2);
         onboard.run(argv, testOptions, function() {
-            test.strictEqual(onboard.getGlobalSettings().name1, 'value1');
-            test.strictEqual(onboard.getGlobalSettings().name2, 'value2');
+            test.strictEqual(hostnameSet, 'hostname1');
+            test.strictEqual(functionsCalled.bigIp.onboard.globalSettings[0].hostname, undefined);
             test.done();
         });
     },
 
     testReboot: function(test) {
+        test.expect(1);
         onboard.run(argv, testOptions, function() {
             test.ok(rebootRequested);
             test.done();
@@ -175,6 +250,8 @@ module.exports = {
 
     testNoReboot: function(test) {
         argv.push('--no-reboot');
+
+        test.expect(2);
         onboard.run(argv, testOptions, function() {
             test.ifError(rebootRequested);
             test.notStrictEqual(signalsSent.indexOf('REBOOT_REQUIRED'), -1);
@@ -193,6 +270,8 @@ module.exports = {
 
         testNoPort: function(test) {
             argv.push('--ssl-port', '8443');
+
+            test.expect(1);
             onboard.run(argv, testOptions, function() {
                 var argsFile = fs.readFileSync('/tmp/rebootScripts/onboard_1234.sh');
                 test.notStrictEqual(argsFile.indexOf('--port 8443'), -1);
@@ -202,10 +281,56 @@ module.exports = {
 
         testPort: function(test) {
             argv.push('--port', '443', '--ssl-port', '8443');
+
+            test.expect(2);
             onboard.run(argv, testOptions, function() {
                 var argsFile = fs.readFileSync('/tmp/rebootScripts/onboard_1234.sh');
                 test.strictEqual(argsFile.indexOf('--port 443'), -1);
                 test.notStrictEqual(argsFile.indexOf('--port 8443'), -1);
+                test.done();
+            });
+        }
+    },
+
+    testRootPassword: {
+        testBasic: function(test) {
+            argv.push('--set-root-password', 'old:myOldPassword,new:myNewPassword');
+
+            test.expect(3);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(functionsCalled.bigIp.onboard.password[0], 'root');
+                test.strictEqual(functionsCalled.bigIp.onboard.password[1], 'myNewPassword');
+                test.strictEqual(functionsCalled.bigIp.onboard.password[2], 'myOldPassword');
+                test.done();
+            });
+        },
+
+        testMissingNew: function(test) {
+            argv.push('--set-root-password', 'old:myOldPassword,new:');
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(functionsCalled.bigIp.onboard.password, undefined);
+                test.done();
+            });
+        },
+
+        testMissingOld: function(test) {
+            argv.push('--set-root-password', 'old:,new:myNewPassword');
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(functionsCalled.bigIp.onboard.password, undefined);
+                test.done();
+            });
+        },
+
+        testMissingBoth: function(test) {
+            argv.push('--set-root-password', 'foo:myOldPassword,bar:myNewPassword');
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(functionsCalled.bigIp.onboard.password, undefined);
                 test.done();
             });
         }
@@ -229,5 +354,29 @@ module.exports = {
             });
             test.done();
         });
+    },
+
+    testNtp: {
+        testNtp: function(test) {
+            var ntpServer = 'ntp.server1';
+            argv.push('--ntp', ntpServer);
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.deepEqual(functionsCalled.bigIp.modify[1], {servers: [ntpServer]});
+                test.done();
+            });
+        },
+
+        testTz: function(test) {
+            var tz = 'myTimezone';
+            argv.push('--tz', tz);
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.deepEqual(functionsCalled.bigIp.modify[1], {timezone: tz});
+                test.done();
+            });
+        }
     }
 };

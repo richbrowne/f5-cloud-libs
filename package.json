@@ -26,7 +26,7 @@
     "cloudProviderTag": ""
   },
   "scripts": {
-    "test": "if ! node_modules/nodeunit/bin/nodeunit --reporter eclipse test/lib; then exit 1; fi; if ! node_modules/nodeunit/bin/nodeunit --reporter eclipse test/scripts; then exit 1; fi",
+    "test": "node_modules/nodeunit/bin/nodeunit --reporter eclipse test/scripts test/lib",
     "coverage": "node node_modules/istanbul/lib/cli.js cover --print detail node_modules/nodeunit/bin/nodeunit test/lib",
     "coveralls": "node node_modules/istanbul/lib/cli.js cover node_modules/nodeunit/bin/nodeunit test/lib; cat coverage/lcov.info | node_modules/coveralls/bin/coveralls.js",
     "package": "./package.sh",

@@ -27,7 +27,7 @@ var argv;
 var funcCount;
 
 // process mock
-var processExit;
+const processExit = process.exit;
 var exitCalled;
 var spawnCalled;
 var calledArgs;
@@ -44,12 +44,17 @@ var childMock = {
 var bigIpMock = {};
 
 // fs mock
+var fsOpen;
+var fsOpenSync;
+var fsCloseSync;
 var fsStat;
 var fsExistsSync;
 var fsUnlink;
 var fsUnlinkSync;
 var fsReadFile;
 var fsReadFileSync;
+var fsWriteSync;
+var fsWriteFile;
 var fsWriteFileSync;
 var fsMkdirSync;
 var fsReaddirSync;
@@ -72,12 +77,17 @@ var getSavedArgs = function() {
 
 module.exports = {
     setUp: function(callback) {
+        fsOpen = fs.open;
+        fsOpenSync = fs.openSync;
+        fsCloseSync = fs.closeSync;
         fsStat = fs.stat;
         fsExistsSync = fs.existsSync;
         fsUnlink = fs.unlink;
         fsUnlinkSync = fs.unlinkSync;
         fsReadFile = fs.readFile;
         fsReadFileSync = fs.readFileSync;
+        fsWriteSync = fs.writeSync;
+        fsWriteFile = fs.writeFile;
         fsWriteFileSync = fs.writeFileSync;
         fsReaddirSync = fs.readdirSync;
         fsMkdirSync = fs.mkdirSync;
@@ -91,12 +101,19 @@ module.exports = {
             delete require.cache[key];
         });
 
+        process.exit = processExit;
+
+        fs.open = fsOpen;
+        fs.closeSync = fsCloseSync;
+        fs.openSync = fsOpenSync;
         fs.stat = fsStat;
         fs.existsSync = fsExistsSync;
         fs.unlink = fsUnlink;
         fs.unlinkSync = fsUnlinkSync;
         fs.readFile = fsReadFile;
         fs.readFileSync = fsReadFileSync;
+        fs.writeSync = fsWriteSync;
+        fs.writeFile = fsWriteFile;
         fs.writeFileSync = fsWriteFileSync;
         fs.readdirSync = fsReaddirSync;
         fs.mkdirSync = fsMkdirSync;
@@ -427,6 +444,11 @@ module.exports = {
             util.download('http://www.example.com')
                 .then(function() {
                     test.ok(dataWritten, 'No data written');
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
                     test.done();
                 });
         },
@@ -498,6 +520,24 @@ module.exports = {
                     test.done();
                 });
         }
+    },
+
+    testRemoveDirectorySync: function(test) {
+        const os = require('os');
+        const sep = require('path').sep;
+        const tmpDirBase = os.tmpdir();
+        const tmpDir = fs.mkdtempSync(`${tmpDirBase}${sep}`);
+        const fileName = 'foo';
+        const subDir = fs.mkdtempSync(`${tmpDir}${sep}`);
+
+        test.expect(1);
+
+        fs.writeFileSync(`${tmpDir}${sep}${fileName}`, 'bar');
+        fs.writeFileSync(`${subDir}${sep}${fileName}`, 'bar');
+
+        util.removeDirectorySync(tmpDir);
+        test.strictEqual(fs.existsSync(tmpDir), false);
+        test.done();
     },
 
     testGetDataFromUrl: {
@@ -716,7 +756,6 @@ module.exports = {
     },
 
     testLogAndExit: function(test) {
-        var exit = process.exit;
         var exitCalled;
         var setImmediateTemp = setImmediate;
 
@@ -728,13 +767,11 @@ module.exports = {
         util.logAndExit();
         test.strictEqual(exitCalled, true);
         test.done();
-        process.exit = exit;
         setImmediate = setImmediateTemp;
     },
 
     testRunInBackgroundAndExit: {
         setUp: function(callback) {
-            processExit = process.exit;
             exitCalled = false;
             unrefCalled = false;
             spawnCalled = false;
@@ -753,7 +790,6 @@ module.exports = {
         },
 
         tearDown: function(callback) {
-            process.exit = processExit;
             childProcess.spawn = childProcessSpawn;
             callback();
         },
@@ -838,6 +874,8 @@ module.exports = {
                 return startupScripts;
             };
             fs.mkdirSync = function() {};
+            fs.closeSync = function() {};
+            fs.openSync = function() {};
 
             bigIpMock.reboot = function() {
                 bigIpMock.rebootCalled = true;
@@ -856,6 +894,11 @@ module.exports = {
                         test.notStrictEqual(writtenCommands.indexOf(script), -1);
                         test.strictEqual(bigIpMock.rebootCalled, true);
                     });
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
                     test.done();
                 });
         },
@@ -868,6 +911,11 @@ module.exports = {
                         test.notStrictEqual(writtenCommands.indexOf(script), -1);
                         test.strictEqual(bigIpMock.rebootCalled, false);
                     });
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
                     test.done();
                 });
         },
@@ -882,6 +930,11 @@ module.exports = {
                 .then(function() {
                     test.strictEqual(writtenCommands, undefined);
                     test.strictEqual(bigIpMock.rebootCalled, true);
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
                     test.done();
                 });
         },
@@ -1114,7 +1167,6 @@ module.exports = {
         },
 
         testOpenThrows: function(test) {
-            var fsOpen = fs.open;
             fs.open = function() {
                 throw new Error('fsOpen threw');
             };
@@ -1128,13 +1180,11 @@ module.exports = {
                     test.ok(false, err);
                 })
                 .finally(function() {
-                    fs.open = fsOpen;
                     test.done();
                 });
         },
 
         testWriteSyncThrows: function(test) {
-            var fsWriteSync = fs.writeSync;
             fs.writeSync = function() {
                 throw new Error('fsWriteSync threw');
             };
@@ -1148,7 +1198,6 @@ module.exports = {
                     test.ok(false, err);
                 })
                 .finally(function() {
-                    fs.writeSync = fsWriteSync;
                     test.done();
                 });
         }

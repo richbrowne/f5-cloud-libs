@@ -62,7 +62,6 @@
             var KEYS_TO_MASK = ['-p', '--password', '--set-password', '--set-root-password', '--big-iq-password'];
             var REQUIRED_OPTIONS = ['host', 'user'];
 
-
             options = require('./commonOptions');
             testOpts = testOpts || {};
 
@@ -136,14 +135,12 @@
 
                 for (i = 0; i < REQUIRED_OPTIONS.length; ++i) {
                     if (!options[REQUIRED_OPTIONS[i]]) {
-                        logger.error(REQUIRED_OPTIONS[i], "is a required command line option.");
-                        return;
+                        util.logAndExit(REQUIRED_OPTIONS[i] + ' is a required command line option.', 'error', 1);
                     }
                 }
 
                 if (!options.password && !options.passwordUrl) {
-                    logger.error("One of --password or --password-url is required.");
-                    return;
+                    util.logAndExit('One of --password or --password-url is required.', 'error', 1);
                 }
 
                 // When running in cloud init, we need to exit so that cloud init can complete and
@@ -271,7 +268,7 @@
 
                             ntpBody = {};
 
-                            if (options.ntp) {
+                            if (options.ntp && options.ntp.length > 0) {
                                 ntpBody.servers = options.ntp;
                             }
 
@@ -460,6 +457,10 @@
                 }
                 else {
                     console.log("Onbarding error:", err);
+                }
+
+                if (cb) {
+                    cb();
                 }
             }
         },

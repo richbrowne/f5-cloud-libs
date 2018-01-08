@@ -21,28 +21,27 @@ var icontrolMock = require('../testUtil/icontrolMock');
 var bigIp;
 var testOptions;
 
-var ipc;
+var utilMock;
+var ipcMock;
 var argv;
 var network;
-
-// Don't let network exit - we need the nodeunit process to run to completion
-process.exit = function() {};
 
 module.exports = {
     setUp: function(callback) {
         bigIp = new BigIp();
-        testOptions = {
+            testOptions = {
             bigIp: bigIp
         };
 
-        ipc = require('../../lib/ipc');
+        ipcMock = require('../../lib/ipc');
 
         // Just resolve right away, otherwise these tests never exit
-        ipc.once = function() {
-            var deferred = q.defer();
-            deferred.resolve();
-            return deferred.promise;
+        ipcMock.once = function() {
+            return q();
         };
+
+        utilMock = require('../../../f5-cloud-libs').util;
+        utilMock.logAndExit = function() {};
 
         network = require('../../scripts/network');
         argv = ['node', 'network', '--host', '1.2.3.4', '-u', 'foo', '-p', 'bar', '--log-level', 'none'];
@@ -60,6 +59,7 @@ module.exports = {
     },
 
     tearDown: function(callback) {
+        utilMock.removeDirectorySync(ipcMock.signalBasePath);
         Object.keys(require.cache).forEach(function(key) {
             delete require.cache[key];
         });
