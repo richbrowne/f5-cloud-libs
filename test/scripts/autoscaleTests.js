@@ -21,7 +21,6 @@ var q = require('q');
 var AutoscaleProvider = require('../../lib/autoscaleProvider');
 var autoscale;
 var fsMock;
-var childProcessMock;
 var BigIp;
 var icontrolMock;
 var cloudUtilMock;
