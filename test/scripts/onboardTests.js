@@ -17,15 +17,20 @@
 
 const realExit = process.exit;
 
-var fs = require('fs');
-var q = require('q');
+const fs = require('fs');
+const q = require('q');
+const ActiveError = require('../../../f5-cloud-libs').activeError;
+
+var metricsCollectorMock;
+
+var rebootCalled = false;
 var functionsCalled;
 var onboard;
 var ipcMock;
 var utilMock;
 var exitCode;
 
-var bigIpMock = {
+const bigIpMock = {
     init: function() {
         functionsCalled.bigIp.init = arguments;
         return q();
@@ -66,6 +71,11 @@ var bigIpMock = {
         return q();
     },
 
+    ping: function() {
+        functionsCalled.bigIp.ping = arguments;
+        return q();
+    },
+
     rebootRequired: function() {
         functionsCalled.bigIp.rebootRequired = arguments;
         return q(true);
@@ -83,8 +93,28 @@ var bigIpMock = {
             return q();
         },
 
+        license: function() {
+            functionsCalled.bigIp.onboard.license = arguments;
+            return q();
+        },
+
+        licenseViaBigIq: function() {
+            functionsCalled.bigIp.onboard.licenseViaBigIq = arguments;
+            return q();
+        },
+
         password: function() {
             functionsCalled.bigIp.onboard.password = arguments;
+            return q();
+        },
+
+        provision: function() {
+            functionsCalled.bigIp.onboard.provision = arguments;
+            return q();
+        },
+
+        setDbVars: function() {
+            functionsCalled.bigIp.onboard.setDbVars = arguments;
             return q();
         },
 
@@ -105,7 +135,7 @@ var bigIpMock = {
             functionsCalled.bigIp.onboard.sslPort = arguments;
             return q();
         }
-    },
+    }
 };
 
 var testOptions = {
@@ -138,13 +168,16 @@ module.exports = {
 
         utilMock = require('../../lib/util');
         onboard = require('../../scripts/onboard');
+        metricsCollectorMock = require('../../../f5-cloud-libs').metricsCollector;
+
         argv = ['node', 'onboard', '--host', '1.2.3.4', '-u', 'foo', '-p', 'bar', '--log-level', 'none'];
         rebootRequested = false;
         functionsCalled = {
             bigIp: {
                 onboard: {}
             },
-            ipc: {}
+            ipc: {},
+            metrics: {}
         };
 
         utilMock.logAndExit = function(message, level, code) {
@@ -154,6 +187,11 @@ module.exports = {
             }
         };
         exitCode = undefined;
+
+        metricsCollectorMock.upload = function() {
+            functionsCalled.metrics.upload = arguments;
+            return q();
+        };
 
         callback();
     },
@@ -358,7 +396,7 @@ module.exports = {
 
     testNtp: {
         testNtp: function(test) {
-            var ntpServer = 'ntp.server1';
+            const ntpServer = 'ntp.server1';
             argv.push('--ntp', ntpServer);
 
             test.expect(1);
@@ -369,7 +407,7 @@ module.exports = {
         },
 
         testTz: function(test) {
-            var tz = 'myTimezone';
+            const tz = 'myTimezone';
             argv.push('--tz', tz);
 
             test.expect(1);
@@ -378,5 +416,189 @@ module.exports = {
                 test.done();
             });
         }
+    },
+
+    testDns: function(test) {
+        const dns = 'mydns.com';
+        argv.push('--dns', dns);
+
+        test.expect(1);
+        onboard.run(argv, testOptions, function() {
+            test.deepEqual(functionsCalled.bigIp.modify[1], {'name-servers': [dns]});
+            test.done();
+        });
+    },
+
+    testDbVars: function(test) {
+        const dbVar1 = 'key1:value1';
+        const dbVar2 = 'key2:value2';
+
+        argv.push('--db', dbVar1, '--db', dbVar2);
+
+        test.expect(1);
+        onboard.run(argv, testOptions, function() {
+            test.deepEqual(functionsCalled.bigIp.onboard.setDbVars[0], {key1: 'value1', key2: 'value2'});
+            test.done();
+        });
+    },
+
+    testLicnse: {
+        testRegKey: function(test) {
+            const regKey = '123345';
+
+            argv.push('--license', regKey);
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.deepEqual(
+                    functionsCalled.bigIp.onboard.license[0],
+                    {
+                        registrationKey: regKey,
+                        addOnKeys: [],
+                        overwrite: true
+                    }
+                );
+                test.done();
+            });
+        },
+
+        testAddOnKeys: function(test) {
+            const addOnKey1 = 'addOn1';
+            const addOnKey2 = 'addOn2';
+
+            argv.push('--add-on', addOnKey1, '--add-on', addOnKey2);
+
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.deepEqual(
+                    functionsCalled.bigIp.onboard.license[0],
+                    {
+                        registrationKey: undefined,
+                        addOnKeys: [addOnKey1, addOnKey2],
+                        overwrite: true
+                    }
+                );
+                test.done();
+            });
+        },
+
+        testLicenseViaBigIq: {
+            testBasic: function(test) {
+                const bigIqHost = 'myBigIq';
+                const bigIqUser = 'myBigIqUser';
+                const bigIqPassword = 'myBigIqPassword';
+                const licensePool = 'myLicensePool';
+                const bigIpMgmtAddress = 'myMgmtAddress';
+                const bigIpMgmtPort = '1234';
+
+                argv.push(
+                    '--license-pool',
+                    '--big-iq-host', bigIqHost,
+                    '--big-iq-user', bigIqUser,
+                    '--big-iq-password', bigIqPassword,
+                    '--license-pool-name', licensePool,
+                    '--big-ip-mgmt-address', bigIpMgmtAddress,
+                    '--big-ip-mgmt-port', bigIpMgmtPort
+                );
+
+                test.expect(5);
+                onboard.run(argv, testOptions, function() {
+                    test.strictEqual(functionsCalled.bigIp.onboard.licenseViaBigIq[0], bigIqHost);
+                    test.strictEqual(functionsCalled.bigIp.onboard.licenseViaBigIq[1], bigIqUser);
+                    test.strictEqual(functionsCalled.bigIp.onboard.licenseViaBigIq[2], bigIqPassword);
+                    test.strictEqual(functionsCalled.bigIp.onboard.licenseViaBigIq[3], licensePool);
+                    test.deepEqual(
+                        functionsCalled.bigIp.onboard.licenseViaBigIq[4],
+                        {
+                            passwordIsUri: false,
+                            bigIpMgmtAddress: bigIpMgmtAddress,
+                            bigIpMgmtPort: bigIpMgmtPort
+                        }
+                    );
+                    test.done();
+                });
+            },
+
+            testMissingParams: function(test) {
+                argv.push('--license-pool');
+
+                test.expect(1);
+                onboard.run(argv, testOptions, function() {
+                    test.strictEqual(functionsCalled.bigIp.onboard.licenseViaBigIq, undefined);
+                    test.done();
+                });
+            }
+        }
+    },
+
+    testProvision: function(test) {
+        const module1 = 'module1:level1';
+        const module2 = 'module2:level2';
+
+        argv.push('--module', module1, '--module', module2);
+
+        test.expect(1);
+        onboard.run(argv, testOptions, function() {
+            test.deepEqual(functionsCalled.bigIp.onboard.provision[0], {module1: 'level1', module2: 'level2'});
+            test.done();
+        });
+
+    },
+
+    testAsmSignatures: function(test) {
+        argv.push('--update-sigs');
+        test.expect(1);
+        onboard.run(argv, testOptions, function() {
+            test.strictEqual(functionsCalled.bigIp.create[0], '/tm/asm/tasks/update-signatures');
+            test.done();
+        });
+    },
+
+    testPing: {
+        testDefault: function(test) {
+            argv.push('--ping');
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(functionsCalled.bigIp.ping[0], 'f5.com');
+                test.done();
+            });
+        },
+
+        testAddress: function(test) {
+            const address = 'www.foo.com';
+
+            argv.push('--ping', address);
+            test.expect(1);
+            onboard.run(argv, testOptions, function() {
+                test.strictEqual(functionsCalled.bigIp.ping[0], address);
+                test.done();
+            });
+        }
+    },
+
+    testMetrics: function(test) {
+        argv.push('--metrics', 'key1:value1');
+        test.expect(2);
+        onboard.run(argv, testOptions, function() {
+            test.strictEqual(functionsCalled.metrics.upload[0].action, 'onboard');
+            test.strictEqual(functionsCalled.metrics.upload[0].key1, 'value1');
+            test.done();
+        });
+    },
+
+    testActiveError: function(test) {
+        utilMock.reboot = function() {
+            rebootCalled = true;
+        };
+
+        bigIpMock.active = function() {
+            return q.reject(new ActiveError("BIG-IP not active."));
+        };
+
+        test.expect(1);
+        onboard.run(argv, testOptions, function() {
+            test.strictEqual(rebootCalled, true);
+            test.done();
+        });
     }
 };

@@ -420,8 +420,7 @@
                     .catch(function(err) {
                         err = err || new Error();
                         logger.error("BIG-IP onboard failed:", err.message);
-
-                        if (err instanceof ActiveError) {
+                        if (err instanceof ActiveError || err.name === 'ActiveError') {
                             logger.warn("BIG-IP active check failed.");
                             rebooting = true;
                             return util.reboot(bigIp, {signalOnly: (options.reboot ? false : true)});
@@ -463,14 +462,6 @@
                     cb();
                 }
             }
-        },
-
-        getGlobalSettings: function() {
-            return globalSettings;
-        },
-
-        getOptions: function() {
-            return options;
         }
     };
 
