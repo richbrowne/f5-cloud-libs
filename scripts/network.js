@@ -96,14 +96,12 @@
 
                 for (i = 0; i < REQUIRED_OPTIONS.length; ++i) {
                     if (!options[REQUIRED_OPTIONS[i]]) {
-                        logger.error(REQUIRED_OPTIONS[i], "is a required command line option.");
-                        return;
+                        util.logAndExit(REQUIRED_OPTIONS[i] + ' is a required command line option.', 'error', 1);
                     }
                 }
 
                 if (!options.password && !options.passwordUrl) {
-                    logger.error("One of --password or --password-url is required.");
-                    return;
+                    util.logAndExit('One of --password or --password-url is required.', 'error', 1);
                 }
 
                 // When running in cloud init, we need to exit so that cloud init can complete and
@@ -124,8 +122,7 @@
                 logger.info(loggableArgs[1] + " called with", loggableArgs.join(' '));
 
                 if (options.singleNic && options.multiNic) {
-                    logger.error("Only one of single-nic or multi-nic can be specified.");
-                    return;
+                    util.logAndExit('Only one of single-nic or multi-nic can be specified.', 'error', 1);
                 }
 
                 // Save args in restart script in case we need to reboot to recover from an error
@@ -412,6 +409,11 @@
 
                             util.logAndExit("Network setup finished.");
                         }
+                        else {
+                            if (cb) {
+                                cb();
+                            }
+                        }
                     });
 
                 // If we reboot, exit - otherwise cloud providers won't know we're done.
@@ -431,6 +433,10 @@
                 }
                 else {
                     console.log("Network setup error:", err);
+                }
+
+                if (cb) {
+                    cb();
                 }
             }
         },

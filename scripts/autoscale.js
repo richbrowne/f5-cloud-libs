@@ -84,333 +84,348 @@
             options.autoSync = true;
             options.saveOnAutoSync = true;
 
-            options = options.getCommonOptions(DEFAULT_LOG_FILE)
-                .option('--cloud <provider>', 'Cloud provider (aws | azure | etc.)')
-                .option('--provider-options <cloud_options>', 'Any options that are required for the specific cloud provider. Ex: param1:value1,param2:value2', util.mapArray, providerOptions)
-                .option('-c, --cluster-action <type>', 'join (join a cluster) | update (update cluster to match existing instances | unblock-sync (allow other devices to sync to us)')
-                .option('--device-group <device_group>', 'Device group name.')
-                .option('    --full-load-on-sync', '    Enable full load on sync. Default false.')
-                .option('    --asm-sync', '    Enable ASM sync. Default false. Default false.')
-                .option('    --network-failover', '    Enable network failover. Default false.')
-                .option('    --no-auto-sync', '    Enable auto sync. Default false (auto sync).')
-                .option('    --no-save-on-auto-sync', '    Enable save on sync if auto sync is enabled. Default false (save on auto sync).')
-                .option('--block-sync', 'If this device is master, do not allow other devices to sync to us. This prevents other devices from syncing to it until we are called again with --cluster-action unblock-sync.')
-                .option('--static', 'Indicates that this instance is not autoscaled. Default false (instance is autoscaled)')
-                .option('--external-tag <tag>', 'If there are instances in the autoscale cluster that are not autoscaled, the cloud tag applied to those instances. Format \'key:<tag_key>,value:<tag_value>\'', util.map, externalTag)
-                .option('--license-pool', 'BIG-IP was licensed from a BIG-IQ license pool. This is so licenses can be revoked when BIG-IPs are scaled in. Supply the following:')
-                .option('    --big-iq-host <ip_address or FQDN>', '    IP address or FQDN of BIG-IQ')
-                .option('    --big-iq-user <user>', '    BIG-IQ admin user name')
-                .option('    --big-iq-password <password>', '    BIG-IQ admin user password.')
-                .option('    --big-iq-password-uri <password_uri>', '    URI (file, http(s), arn) to location that contains BIG-IQ admin user password. Use this or --big-iq-password.')
-                .option('    --license-pool-name <pool_name>', '    Name of BIG-IQ license pool.')
-                .option('    --big-ip-mgmt-address <big_ip_address>', '    IP address or FQDN of BIG-IP management port. Use this if BIG-IP reports an address not reachable from BIG-IQ.')
-                .option('    --big-ip-mgmt-port <big_ip_port>', '    Port for the management address. Use this if the BIG-IP is not reachable from BIG-IQ via the port used in --port')
-                .parse(argv);
+            try {
+                options = options.getCommonOptions(DEFAULT_LOG_FILE)
+                    .option('--cloud <provider>', 'Cloud provider (aws | azure | etc.)')
+                    .option('--provider-options <cloud_options>', 'Any options that are required for the specific cloud provider. Ex: param1:value1,param2:value2', util.mapArray, providerOptions)
+                    .option('-c, --cluster-action <type>', 'join (join a cluster) | update (update cluster to match existing instances | unblock-sync (allow other devices to sync to us)')
+                    .option('--device-group <device_group>', 'Device group name.')
+                    .option('    --full-load-on-sync', '    Enable full load on sync. Default false.')
+                    .option('    --asm-sync', '    Enable ASM sync. Default false. Default false.')
+                    .option('    --network-failover', '    Enable network failover. Default false.')
+                    .option('    --no-auto-sync', '    Enable auto sync. Default false (auto sync).')
+                    .option('    --no-save-on-auto-sync', '    Enable save on sync if auto sync is enabled. Default false (save on auto sync).')
+                    .option('--block-sync', 'If this device is master, do not allow other devices to sync to us. This prevents other devices from syncing to it until we are called again with --cluster-action unblock-sync.')
+                    .option('--static', 'Indicates that this instance is not autoscaled. Default false (instance is autoscaled)')
+                    .option('--external-tag <tag>', 'If there are instances in the autoscale cluster that are not autoscaled, the cloud tag applied to those instances. Format \'key:<tag_key>,value:<tag_value>\'', util.map, externalTag)
+                    .option('--license-pool', 'BIG-IP was licensed from a BIG-IQ license pool. This is so licenses can be revoked when BIG-IPs are scaled in. Supply the following:')
+                    .option('    --big-iq-host <ip_address or FQDN>', '    IP address or FQDN of BIG-IQ')
+                    .option('    --big-iq-user <user>', '    BIG-IQ admin user name')
+                    .option('    --big-iq-password <password>', '    BIG-IQ admin user password.')
+                    .option('    --big-iq-password-uri <password_uri>', '    URI (file, http(s), arn) to location that contains BIG-IQ admin user password. Use this or --big-iq-password.')
+                    .option('    --license-pool-name <pool_name>', '    Name of BIG-IQ license pool.')
+                    .option('    --big-ip-mgmt-address <big_ip_address>', '    IP address or FQDN of BIG-IP management port. Use this if BIG-IP reports an address not reachable from BIG-IQ.')
+                    .option('    --big-ip-mgmt-port <big_ip_port>', '    Port for the management address. Use this if the BIG-IP is not reachable from BIG-IQ via the port used in --port')
+                    .parse(argv);
 
-            loggerOptions.console = options.console;
-            loggerOptions.logLevel = options.logLevel;
-            loggerOptions.module = module;
+                loggerOptions.console = options.console;
+                loggerOptions.logLevel = options.logLevel;
+                loggerOptions.module = module;
 
-            if (options.output) {
-                loggerOptions.fileName = options.output;
-            }
-
-            logger = Logger.getLogger(loggerOptions);
-            util.setLoggerOptions(loggerOptions);
-            cryptoUtil.setLoggerOptions(loggerOptions);
-
-            if (!options.password && !options.passwordUrl) {
-                logger.error("One of --password or --password-url is required.");
-                return;
-            }
-
-            // When running in cloud init, we need to exit so that cloud init can complete and
-            // allow the BIG-IP services to start
-            if (options.background) {
-                logFileName = options.output || DEFAULT_LOG_FILE;
-                logger.info("Spawning child process to do the work. Output will be in", logFileName);
-                util.runInBackgroundAndExit(process, logFileName);
-            }
-
-            // Log the input, but don't log passwords
-            loggableArgs = argv.slice();
-            for (i = 0; i < loggableArgs.length; ++i) {
-                if (KEYS_TO_MASK.indexOf(loggableArgs[i]) !== -1) {
-                    loggableArgs[i + 1] = "*******";
+                if (options.output) {
+                    loggerOptions.fileName = options.output;
                 }
-            }
-            logger.info(loggableArgs[1] + " called with", loggableArgs.join(' '));
 
-            // Get the concrete provider instance
-            provider = testOpts.provider;
-            if (!provider) {
-                Provider = require('f5-cloud-libs-' + options.cloud).provider;
-                provider = new Provider({clOptions: options, loggerOptions: loggerOptions});
-            }
+                logger = Logger.getLogger(loggerOptions);
+                util.setLoggerOptions(loggerOptions);
+                cryptoUtil.setLoggerOptions(loggerOptions);
 
-            // Save args in restart script in case we need to reboot to recover from an error
-            util.saveArgs(argv, ARGS_FILE_ID)
-                .then(function() {
-                    if (options.waitFor) {
-                        logger.info("Waiting for", options.waitFor);
-                        return ipc.once(options.waitFor);
+                if (!options.password && !options.passwordUrl) {
+                    util.logAndExit('One of --password or --password-url is required.', 'error', 1);
+                }
+
+                // When running in cloud init, we need to exit so that cloud init can complete and
+                // allow the BIG-IP services to start
+                if (options.background) {
+                    logFileName = options.output || DEFAULT_LOG_FILE;
+                    logger.info("Spawning child process to do the work. Output will be in", logFileName);
+                    util.runInBackgroundAndExit(process, logFileName);
+                }
+
+                // Log the input, but don't log passwords
+                loggableArgs = argv.slice();
+                for (i = 0; i < loggableArgs.length; ++i) {
+                    if (KEYS_TO_MASK.indexOf(loggableArgs[i]) !== -1) {
+                        loggableArgs[i + 1] = "*******";
                     }
-                })
-                .then(function() {
-                    // Whatever we're waiting for is done, so don't wait for
-                    // that again in case of a reboot
-                    return util.saveArgs(argv, ARGS_FILE_ID, ['--wait-for']);
-                })
-                .then(function() {
-                    return provider.init(providerOptions[0], {autoscale: true});
-                })
-                .then(function() {
-                    logger.info('Getting this instance ID.');
-                    return provider.getInstanceId();
-                })
-                .then(function(response) {
-                    logger.debug('This instance ID:', response);
-                    this.instanceId = response;
+                }
+                logger.info(loggableArgs[1] + " called with", loggableArgs.join(' '));
 
-                    logger.info('Getting info on all instances.');
-                    if (Object.keys(externalTag).length === 0) {
-                        externalTag = undefined;
-                    }
-                    return provider.getInstances({externalTag: externalTag});
-                }.bind(this))
-                .then(function (response) {
-                    this.instances = response || {};
-                    logger.debug('instances:', this.instances);
+                // Get the concrete provider instance
+                provider = testOpts.provider;
+                if (!provider) {
+                    Provider = require('f5-cloud-libs-' + options.cloud).provider;
+                    provider = new Provider({clOptions: options, loggerOptions: loggerOptions});
+                }
 
-                    if (Object.keys(this.instances).length === 0) {
-                        throw new Error('Instance list is empty. Exiting.');
-                    }
-
-                    this.instance = this.instances[this.instanceId];
-                    if (!this.instance) {
-                        throw new Error('Our instance ID is not in instance list. Exiting');
-                    }
-
-                    this.instance.status = this.instance.status || INSTANCE_STATUS_OK;
-                    logger.silly('Instance status:', this.instance.status);
-
-                    if (this.instance.status === INSTANCE_STATUS_BECOMING_MASTER) {
-                        throw new Error('Currently becoming master. Exiting.');
-                    }
-
-                    return provider.putInstance(this.instanceId, this.instance);
-                }.bind(this))
-                .then(function() {
-                    if (testOpts.bigIp) {
-                        bigIp = testOpts.bigIp;
-                    }
-                    else {
-                        bigIp = new BigIp({loggerOptions: loggerOptions});
-
-                        logger.info("Initializing BIG-IP.");
-                        return bigIp.init(
-                            options.host,
-                            options.user,
-                            options.password || options.passwordUrl,
-                            {
-                                port: options.port,
-                                passwordIsUrl: typeof options.passwordUrl !== 'undefined',
-                                passwordEncrypted: options.passwordEncrypted
-                            }
-                        );
-                    }
-                }.bind(this))
-                .then(function () {
-                    return provider.bigIpReady();
-                }.bind(this))
-                .then(function() {
-                    return bigIp.deviceInfo();
-                }.bind(this))
-                .then(function(response) {
-                    this.instance.version = response.version;
-                    markVersions(this.instances);
-                    return provider.putInstance(this.instanceId, this.instance);
-                }.bind(this))
-                .then(function() {
-                    var status = AutoscaleProvider.STATUS_UNKNOWN;
-
-                    logger.info('Determining master instance id.');
-                    masterInstance = getMasterInstance(this.instances);
-
-                    if (masterInstance) {
-                        if (!masterInstance.instance.versionOk) {
-                            masterBadReason = 'version not most recent in group';
-                            logger.silly(masterBadReason);
-                            status = AutoscaleProvider.STATUS_VERSION_NOT_UP_TO_DATE;
-                            masterBad = true;
+                // Save args in restart script in case we need to reboot to recover from an error
+                util.saveArgs(argv, ARGS_FILE_ID)
+                    .then(function() {
+                        if (options.waitFor) {
+                            logger.info("Waiting for", options.waitFor);
+                            return ipc.once(options.waitFor);
                         }
-                        // if there are external instances in the mix, make sure the master
-                        // is one of them
-                        else if (!isMasterExternalValueOk(masterInstance.id, this.instances)) {
-                            masterBadReason = 'master is not external, but there are external instances';
-                            logger.silly(masterBadReason);
-                            status = AutoscaleProvider.STATUS_NOT_EXTERNAL;
-                            masterBad = true;
+                    })
+                    .then(function() {
+                        // Whatever we're waiting for is done, so don't wait for
+                        // that again in case of a reboot
+                        return util.saveArgs(argv, ARGS_FILE_ID, ['--wait-for']);
+                    })
+                    .then(function() {
+                        return provider.init(providerOptions[0], {autoscale: true});
+                    })
+                    .then(function() {
+                        logger.info('Getting this instance ID.');
+                        return provider.getInstanceId();
+                    })
+                    .then(function(response) {
+                        logger.debug('This instance ID:', response);
+                        this.instanceId = response;
+
+                        logger.info('Getting info on all instances.');
+                        if (Object.keys(externalTag).length === 0) {
+                            externalTag = undefined;
                         }
-                        else if (!masterInstance.instance.providerVisible) {
-                            // The cloud provider does not currently see this instance
-                            status = AutoscaleProvider.STATUS_NOT_IN_CLOUD_LIST;
+                        return provider.getInstances({externalTag: externalTag});
+                    }.bind(this))
+                    .then(function (response) {
+                        this.instances = response || {};
+                        logger.debug('instances:', this.instances);
+
+                        if (Object.keys(this.instances).length === 0) {
+                            util.logAndExit('Instance list is empty. Exiting.', 'error', 1);
+                        }
+
+                        this.instance = this.instances[this.instanceId];
+                        if (!this.instance) {
+                            util.logAndExit('Our instance ID is not in instance list. Exiting', 'error', 1);
+                        }
+
+                        this.instance.status = this.instance.status || INSTANCE_STATUS_OK;
+                        logger.silly('Instance status:', this.instance.status);
+
+                        if (this.instance.status === INSTANCE_STATUS_BECOMING_MASTER) {
+                            util.logAndExit('Currently becoming master. Exiting.', 'info');
+                        }
+
+                        return provider.putInstance(this.instanceId, this.instance);
+                    }.bind(this))
+                    .then(function() {
+                        if (testOpts.bigIp) {
+                            bigIp = testOpts.bigIp;
                         }
                         else {
-                            masterIid = masterInstance.id;
+                            bigIp = new BigIp({loggerOptions: loggerOptions});
 
-                            if (this.instanceId === masterIid) {
-                                this.instance.isMaster = true;
+                            logger.info("Initializing BIG-IP.");
+                            return bigIp.init(
+                                options.host,
+                                options.user,
+                                options.password || options.passwordUrl,
+                                {
+                                    port: options.port,
+                                    passwordIsUrl: typeof options.passwordUrl !== 'undefined',
+                                    passwordEncrypted: options.passwordEncrypted
+                                }
+                            );
+                        }
+                    }.bind(this))
+                    .then(function () {
+                        return provider.bigIpReady();
+                    }.bind(this))
+                    .then(function() {
+                        return bigIp.deviceInfo();
+                    }.bind(this))
+                    .then(function(response) {
+                        this.instance.version = response.version;
+                        markVersions(this.instances);
+                        return provider.putInstance(this.instanceId, this.instance);
+                    }.bind(this))
+                    .then(function() {
+                        var status = AutoscaleProvider.STATUS_UNKNOWN;
+
+                        logger.info('Determining master instance id.');
+                        masterInstance = getMasterInstance(this.instances);
+
+                        if (masterInstance) {
+                            if (!masterInstance.instance.versionOk) {
+                                masterBadReason = 'version not most recent in group';
+                                logger.silly(masterBadReason);
+                                status = AutoscaleProvider.STATUS_VERSION_NOT_UP_TO_DATE;
+                                masterBad = true;
+                            }
+                            // if there are external instances in the mix, make sure the master
+                            // is one of them
+                            else if (!isMasterExternalValueOk(masterInstance.id, this.instances)) {
+                                masterBadReason = 'master is not external, but there are external instances';
+                                logger.silly(masterBadReason);
+                                status = AutoscaleProvider.STATUS_NOT_EXTERNAL;
+                                masterBad = true;
+                            }
+                            else if (!masterInstance.instance.providerVisible) {
+                                // The cloud provider does not currently see this instance
+                                status = AutoscaleProvider.STATUS_NOT_IN_CLOUD_LIST;
+                            }
+                            else {
+                                masterIid = masterInstance.id;
+
+                                if (this.instanceId === masterIid) {
+                                    this.instance.isMaster = true;
+                                }
+
+                                status = AutoscaleProvider.STATUS_OK;
+                            }
+                        }
+
+                        return updateMasterStatus.call(this, provider, status);
+                    }.bind(this))
+                    .then(function() {
+                        // If the master is not visible, check to see if it's been gone
+                        // for a while or if this is a random error
+                        if (masterInstance && !masterBad && isMasterExpired(this.instance)) {
+                            masterBad = true;
+                            masterBadReason = 'master is expired';
+                        }
+
+                        if (masterIid) {
+                            logger.info('Possible master ID:', masterIid);
+                            return provider.isValidMaster(masterIid, this.instances);
+                        }
+                        else if (masterBad) {
+                            logger.info('Old master no longer valid:', masterBadReason);
+                        }
+                        else {
+                            logger.info('No master ID found.');
+                        }
+                    }.bind(this))
+                    .then(function(validMaster) {
+
+                        logger.silly('validMaster:', validMaster, ', masterInstance: ', masterInstance, ', masterBad:', masterBad);
+
+                        if (validMaster) {
+                            // true validMaster means we have a valid masterIid, just pass it on
+                            logger.info('Valid master ID:', masterIid);
+                            return masterIid;
+                        }
+                        else {
+                            // false or undefined validMaster means no masterIid or invalid masterIid
+                            if (validMaster === false) {
+                                logger.info('Invalid master ID:', masterIid);
+                                provider.masterInvalidated(masterIid);
                             }
 
-                            status = AutoscaleProvider.STATUS_OK;
+                            // if no master, master is visible or expired, elect, otherwise, wait
+                            if (!masterInstance ||
+                                masterInstance.instance.providerVisible ||
+                                masterBad) {
+
+                                logger.info('Electing master.');
+                                return provider.electMaster(this.instances);
+                            }
                         }
-                    }
+                    }.bind(this))
+                    .then(function(response) {
+                        var now = new Date();
 
-                    return updateMasterStatus.call(this, provider, status);
-                }.bind(this))
-                .then(function() {
-                    // If the master is not visible, check to see if it's been gone
-                    // for a while or if this is a random error
-                    if (masterInstance && !masterBad && isMasterExpired(this.instance)) {
-                        masterBad = true;
-                        masterBadReason = 'master is expired';
-                    }
+                        if (response) {
+                            // we just elected a master
+                            masterIid = response;
+                            this.instance.isMaster = (this.instanceId === masterIid);
+                            logger.info('Using master ID:', masterIid);
+                            logger.info('This instance', (this.instance.isMaster ? 'is' : 'is not'), 'master');
 
-                    if (masterIid) {
-                        logger.info('Possible master ID:', masterIid);
-                        return provider.isValidMaster(masterIid, this.instances);
-                    }
-                    else if (masterBad) {
-                        logger.info('Old master no longer valid:', masterBadReason);
-                    }
-                    else {
-                        logger.info('No master ID found.');
-                    }
-                }.bind(this))
-                .then(function(validMaster) {
+                            if (this.instance.masterStatus.instanceId !== masterIid) {
+                                logger.info('New master elected');
+                                newMaster = true;
 
-                    logger.silly('validMaster:', validMaster, ', masterInstance: ', masterInstance, ', masterBad:', masterBad);
+                                this.instance.masterStatus = {
+                                    instanceId: masterIid,
+                                    status: AutoscaleProvider.STATUS_OK,
+                                    lastUpdate: now,
+                                    lastStatusChange: now
+                                };
 
-                    if (validMaster) {
-                        // true validMaster means we have a valid masterIid, just pass it on
-                        logger.info('Valid master ID:', masterIid);
-                        return masterIid;
-                    }
-                    else {
-                        // false or undefined validMaster means no masterIid or invalid masterIid
-                        if (validMaster === false) {
-                            logger.info('Invalid master ID:', masterIid);
-                            provider.masterInvalidated(masterIid);
+                                return provider.putInstance(this.instanceId, this.instance);
+                            }
                         }
-
-                        // if no master, master is visible or expired, elect, otherwise, wait
-                        if (!masterInstance ||
-                            masterInstance.instance.providerVisible ||
-                            masterBad) {
-
-                            logger.info('Electing master.');
-                            return provider.electMaster(this.instances);
-                        }
-                    }
-                }.bind(this))
-                .then(function(response) {
-                    var now = new Date();
-
-                    if (response) {
-                        // we just elected a master
-                        masterIid = response;
-                        this.instance.isMaster = (this.instanceId === masterIid);
-                        logger.info('Using master ID:', masterIid);
-                        logger.info('This instance', (this.instance.isMaster ? 'is' : 'is not'), 'master');
-
-                        if (this.instance.masterStatus.instanceId !== masterIid) {
-                            logger.info('New master elected');
-                            newMaster = true;
-
-                            this.instance.masterStatus = {
-                                instanceId: masterIid,
-                                status: AutoscaleProvider.STATUS_OK,
-                                lastUpdate: now,
-                                lastStatusChange: now
-                            };
-
+                    }.bind(this))
+                    .then(function() {
+                        if (this.instance.isMaster && newMaster) {
+                            this.instance.status = INSTANCE_STATUS_BECOMING_MASTER;
                             return provider.putInstance(this.instanceId, this.instance);
                         }
-                    }
-                }.bind(this))
-                .then(function() {
-                    if (this.instance.isMaster && newMaster) {
-                        this.instance.status = INSTANCE_STATUS_BECOMING_MASTER;
-                        return provider.putInstance(this.instanceId, this.instance)
-                            .then(function() {
-                                return becomeMaster.call(this, provider, bigIp, options);
-                            }.bind(this));
-                    }
-                }.bind(this))
-                .then(function(response) {
-                    if (this.instance.status === INSTANCE_STATUS_BECOMING_MASTER && response === true) {
-                        this.instance.status = INSTANCE_STATUS_OK;
-                        logger.silly('Became master');
-                        return provider.putInstance(this.instanceId, this.instance);
-                    }
-                    else if (response === false) {
-                        logger.warn('Error writing master file');
-                    }
-                }.bind(this))
-                .then(function() {
-                    if (masterIid && this.instance.status === INSTANCE_STATUS_OK) {
-                        return provider.masterElected(masterIid);
-                    }
-                }.bind(this))
-                .then(function() {
-                    if (this.instance.status === INSTANCE_STATUS_OK) {
-                        switch(options.clusterAction) {
-                            case 'join':
-                                return handleJoin.call(this, provider, bigIp, masterIid, masterBad, options);
-                            case 'update':
-                                return handleUpdate.call(this, provider, bigIp, masterIid, masterBad, options);
-                            case 'unblock-sync':
-                                logger.info("Cluster action UNBLOCK-SYNC");
-                                return bigIp.cluster.configSyncIp(this.instance.privateIp);
-                        }
-                    }
-                    else {
-                        logger.debug('Instance status not OK. Waiting.', this.instance.status);
-                    }
-                }.bind(this))
-                .then(function() {
-                    if (this.instance.status === INSTANCE_STATUS_OK) {
-                        if (provider.hasFeature(AutoscaleProvider.FEATURE_MESSAGING)) {
-                            logger.info('Checking for messages');
-                            return handleMessages.call(this, provider, bigIp, options);
-                        }
-                    }
-                    else {
-                        logger.debug('Instance status not OK. Waiting.', this.instance.status);
-                    }
-                }.bind(this))
-                .catch(function(err) {
-                    logger.error(err.message);
-                })
-                .done(function() {
-                    util.deleteArgs(ARGS_FILE_ID);
-
-                    if (cb) {
-                        cb();
-                    }
-
-                    // Exit so that any listeners don't keep us alive
-                    util.logAndExit("Autoscale finished.");
-                });
-
-                // If we reboot, exit - otherwise cloud providers won't know we're done
-                ipc.once('REBOOT')
+                    }.bind(this))
                     .then(function() {
-                        util.logAndExit("REBOOT signaled. Exiting.");
+                        if (this.instance.isMaster && newMaster) {
+                            return becomeMaster.call(this, provider, bigIp, options);
+                        }
+                    }.bind(this))
+                    .then(function(response) {
+                        if (this.instance.status === INSTANCE_STATUS_BECOMING_MASTER && response === true) {
+                            this.instance.status = INSTANCE_STATUS_OK;
+                            logger.silly('Became master');
+                            return provider.putInstance(this.instanceId, this.instance);
+                        }
+                        else if (response === false) {
+                            logger.warn('Error writing master file');
+                        }
+                    }.bind(this))
+                    .then(function() {
+                        if (masterIid && this.instance.status === INSTANCE_STATUS_OK) {
+                            return provider.masterElected(masterIid);
+                        }
+                    }.bind(this))
+                    .then(function() {
+                        if (this.instance.status === INSTANCE_STATUS_OK) {
+                            switch(options.clusterAction) {
+                                case 'join':
+                                    return handleJoin.call(this, provider, bigIp, masterIid, masterBad, options);
+                                case 'update':
+                                    return handleUpdate.call(this, provider, bigIp, masterIid, masterBad, options);
+                                case 'unblock-sync':
+                                    logger.info("Cluster action UNBLOCK-SYNC");
+                                    return bigIp.cluster.configSyncIp(this.instance.privateIp);
+                            }
+                        }
+                        else {
+                            logger.debug('Instance status not OK. Waiting.', this.instance.status);
+                        }
+                    }.bind(this))
+                    .then(function() {
+                        if (this.instance.status === INSTANCE_STATUS_OK) {
+                            if (provider.hasFeature(AutoscaleProvider.FEATURE_MESSAGING)) {
+                                logger.info('Checking for messages');
+                                return handleMessages.call(this, provider, bigIp, options);
+                            }
+                        }
+                        else {
+                            logger.debug('Instance status not OK. Waiting.', this.instance.status);
+                        }
+                    }.bind(this))
+                    .catch(function(err) {
+                        logger.error(err);
+                        return err;
+                    })
+                    .done(function(err) {
+                        util.deleteArgs(ARGS_FILE_ID);
+
+                        if (cb) {
+                            cb(err);
+                        }
+
+                        // Exit so that any listeners don't keep us alive
+                        util.logAndExit("Autoscale finished.");
                     });
 
+                    // If we reboot, exit - otherwise cloud providers won't know we're done
+                    ipc.once('REBOOT')
+                        .then(function() {
+                            util.logAndExit("REBOOT signaled. Exiting.");
+                        });
             }
+            catch (err) {
+                if (logger) {
+                    logger.error("autoscale error:", err);
+                }
+                else {
+                    console.log("autoscale error:", err);
+                }
+
+                if (cb) {
+                    cb();
+                }
+            }
+        }
     };
 
     /**
@@ -1122,6 +1137,7 @@
 
         var deferred = q.defer();
         var originalFile;
+        var message;
 
         var doLoad = function() {
             var childProcess = require('child_process');
@@ -1133,14 +1149,15 @@
 
             cp = childProcess.execFile(updateScript, args, function(err) {
                 if (err) {
-                    logger.warn(updateScript + ' failed:', err);
-                    deferred.reject(err);
+                    message = updateScript + ' failed:' + err;
+                    logger.warn(message);
+                    deferred.reject(new Error(message));
                     return;
                 }
 
                 if (!fs.existsSync(updatedPath)) {
                     logger.warn(updatedPath + ' does not exist after running ' + updateScript);
-                    deferred.reject(new Error('load ucs failed'));
+                    deferred.reject(new Error('updated ucs not found'));
                     return;
                 }
 

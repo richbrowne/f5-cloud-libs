@@ -29,6 +29,7 @@ var encryptData;
 var realWriteFile;
 var realReadFile;
 
+var functionsCalled;
 var generateAndInstallKeyPairCalled;
 
 module.exports = {
@@ -63,9 +64,12 @@ module.exports = {
 
         // Just resolve right away, otherwise these tests never exit
         ipcMock.once = function() {
-            var deferred = q.defer();
-            deferred.resolve();
-            return deferred.promise;
+            functionsCalled.ipc.once = arguments;
+            return q();
+        };
+
+        functionsCalled = {
+            ipc: {}
         };
 
         encryptData = require('../../scripts/encryptDataToFile');
@@ -83,6 +87,31 @@ module.exports = {
             delete require.cache[key];
         });
         callback();
+    },
+
+    testWaitFor: function(test) {
+        argv.push('--wait-for', 'foo', '--data', 'dataToEncrypt', '--out-file', 'foo');
+
+        test.expect(1);
+        encryptData.run(argv, testOpts, function() {
+            test.strictEqual(functionsCalled.ipc.once[0], 'foo');
+            test.done();
+        });
+    },
+
+    testBackground: function(test) {
+        var runInBackgroundCalled = false;
+        utilMock.runInBackgroundAndExit = function() {
+            runInBackgroundCalled = true;
+        };
+
+        argv.push('--background', '--data', 'dataToEncrypt', '--out-file', 'foo');
+
+        test.expect(1);
+        encryptData.run(argv, testOpts, function() {
+            test.ok(runInBackgroundCalled);
+            test.done();
+        });
     },
 
     testNoDataOrDataFile: function(test) {

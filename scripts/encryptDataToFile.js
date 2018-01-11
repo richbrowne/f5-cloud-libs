@@ -152,17 +152,6 @@
 
                         util.logAndExit("Encryption done.");
                     });
-
-                // If we reboot, exit - otherwise cloud providers won't know we're done.
-                // But, if we're the one doing the reboot, we'll exit on our own through
-                // the normal path.
-                if (!options.forceReboot) {
-                    ipc.once('REBOOT')
-                        .then(function() {
-                            // Make sure the last log message is flushed before exiting.
-                            util.logAndExit("REBOOT signaled. Exiting.");
-                        });
-                }
             }
             catch (err) {
                 if (logger) {
