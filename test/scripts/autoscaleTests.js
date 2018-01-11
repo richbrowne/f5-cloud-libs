@@ -37,6 +37,8 @@ var exitCode;
 var exitMessage;
 var messages;
 var credentials;
+var cloudPrivateKeyPath;
+var privateKeyMetadata;
 
 var existsSync;
 var unlinkSync;
@@ -185,10 +187,19 @@ module.exports = {
             return q();
         };
 
+        cryptoUtilMock.functionCalls = {};
         cryptoUtilMock.generateRandomBytes = function() {
             return q();
         };
         cryptoUtilMock.generateKeyPair = function() {
+            return q();
+        };
+        cryptoUtilMock.decrypt = function() {
+            cryptoUtilMock.functionCalls.decrypt = arguments;
+            return q();
+        };
+        cryptoUtilMock.encrypt = function() {
+            cryptoUtilMock.functionCalls.encrypt = arguments;
             return q();
         };
 
@@ -218,6 +229,15 @@ module.exports = {
                 bigIpMock.installPrivateKey = function() {
                     bigIpMock.functionCalls.installPrivateKey = arguments;
                     return q();
+                };
+
+                bigIpMock.getPrivateKeyFilePath = function() {
+                    return q(cloudPrivateKeyPath);
+                };
+
+                bigIpMock.getPrivateKeyMetadata = function() {
+                    bigIpMock.functionCalls.getPrivateKeyMetadata = arguments;
+                    return q(privateKeyMetadata);
                 };
 
                 bigIpMock.cluster = {
@@ -805,6 +825,69 @@ module.exports = {
             testActions: function(test) {
                 autoscale.run(argv, testOptions, function() {
                     test.deepEqual(providerMock.functionCalls.getMessages[0], [AutoscaleProvider.MESSAGE_SYNC_COMPLETE]);
+                    test.done();
+                });
+            },
+
+            testPrepareEncryptedMessageData: function(test) {
+                const publicKey = 'myPubKey';
+                providerMock.features[AutoscaleProvider.FEATURE_ENCRYPTION] = true;
+                providerMock.getPublicKey = function() {
+                    return q(publicKey);
+                };
+                autoscale.run(argv, testOptions, function() {
+                    test.deepEqual(cryptoUtilMock.functionCalls.encrypt[0], publicKey);
+                    test.done();
+                });
+            }
+        },
+
+        testEncrypted: {
+            setUp: function(callback) {
+                providerMock.features[AutoscaleProvider.FEATURE_ENCRYPTION] = true;
+                providerMock.getMessages = function() {
+                    const messages = [
+                        {
+                            action: AutoscaleProvider.MESSAGE_ADD_TO_CLUSTER,
+                            data: {}
+                        }
+                    ];
+                    return q(messages);
+                };
+                privateKeyMetadata = {
+                    passphrase: 'myPassphrase'
+                };
+                callback();
+            },
+
+            testHasKey: function(test) {
+                autoscale.cloudPrivateKeyPath = 'foo';
+                test.expect(2);
+                autoscale.run(argv, testOptions, function() {
+                    test.deepEqual(cryptoUtilMock.functionCalls.decrypt[0], autoscale.cloudPrivateKeyPath);
+                    test.deepEqual(
+                        cryptoUtilMock.functionCalls.decrypt[2],
+                        {
+                            passphrase: privateKeyMetadata.passphrase,
+                            passphraseEncrypted: true
+                        }
+                    );
+                    test.done();
+                });
+            },
+
+            testDoesNotHaveKey: function(test) {
+                cloudPrivateKeyPath = 'bar';
+                test.expect(2);
+                autoscale.run(argv, testOptions, function() {
+                    test.deepEqual(cryptoUtilMock.functionCalls.decrypt[0], cloudPrivateKeyPath);
+                    test.deepEqual(
+                        cryptoUtilMock.functionCalls.decrypt[2],
+                        {
+                            passphrase: privateKeyMetadata.passphrase,
+                            passphraseEncrypted: true
+                        }
+                    );
                     test.done();
                 });
             }
