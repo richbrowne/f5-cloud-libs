@@ -325,22 +325,78 @@ module.exports = {
                 });
             },
 
-            testPortLockdown: function(test) {
-                argv.push('--self-ip', 'name:foo, address:1.2.3.4, vlan:bar, allow:hello:5678 world:9876');
-                test.expect(1);
-                network.run(argv, testOptions, function() {
-                    var request = icontrolMock.getRequest('create', '/tm/net/self');
-                    test.deepEqual(
-                        request,
-                        {
-                            name: 'foo',
-                            address: '1.2.3.4/24',
-                            vlan: '/Common/bar',
-                            allowService: ['hello:5678', 'world:9876']
-                        }
-                    );
-                    test.done();
-                });
+            testPortLockdown: {
+                testSpecificSingle: function(test) {
+                    argv.push('--self-ip', 'name:foo, address:1.2.3.4, vlan:bar, allow:hello:5678');
+                    test.expect(1);
+                    network.run(argv, testOptions, function() {
+                        var request = icontrolMock.getRequest('create', '/tm/net/self');
+                        test.deepEqual(
+                            request,
+                            {
+                                name: 'foo',
+                                address: '1.2.3.4/24',
+                                vlan: '/Common/bar',
+                                allowService: ['hello:5678']
+                            }
+                        );
+                        test.done();
+                    });
+                },
+
+                testSpecificMultiple: function(test) {
+                    argv.push('--self-ip', 'name:foo, address:1.2.3.4, vlan:bar, allow:hello:5678 world:9876');
+                    test.expect(1);
+                    network.run(argv, testOptions, function() {
+                        var request = icontrolMock.getRequest('create', '/tm/net/self');
+                        test.deepEqual(
+                            request,
+                            {
+                                name: 'foo',
+                                address: '1.2.3.4/24',
+                                vlan: '/Common/bar',
+                                allowService: ['hello:5678', 'world:9876']
+                            }
+                        );
+                        test.done();
+                    });
+                },
+
+                testSpecificPlusDefault: function(test) {
+                    argv.push('--self-ip', 'name:foo, address:1.2.3.4, vlan:bar, allow:default world:9876');
+                    test.expect(1);
+                    network.run(argv, testOptions, function() {
+                        var request = icontrolMock.getRequest('create', '/tm/net/self');
+                        test.deepEqual(
+                            request,
+                            {
+                                name: 'foo',
+                                address: '1.2.3.4/24',
+                                vlan: '/Common/bar',
+                                allowService: ['default', 'world:9876']
+                            }
+                        );
+                        test.done();
+                    });
+                },
+
+                testGeneral: function(test) {
+                    argv.push('--self-ip', 'name:foo, address:1.2.3.4, vlan:bar, allow:all');
+                    test.expect(1);
+                    network.run(argv, testOptions, function() {
+                        var request = icontrolMock.getRequest('create', '/tm/net/self');
+                        test.deepEqual(
+                            request,
+                            {
+                                name: 'foo',
+                                address: '1.2.3.4/24',
+                                vlan: '/Common/bar',
+                                allowService: 'all'
+                            }
+                        );
+                        test.done();
+                    });
+                }
             }
         }
     },

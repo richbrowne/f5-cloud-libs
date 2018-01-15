@@ -261,6 +261,7 @@
 
                         var promises = [];
                         var selfIpBody;
+                        var portLockdown;
 
                         if (selfIps.length > 0) {
                             selfIps.forEach(function(selfIp) {
@@ -272,11 +273,21 @@
                                     selfIp.address += DEFAULT_CIDR;
                                 }
 
+                                // general terms (default, all, none) have to be single words
+                                // per port terms go in an array
+                                portLockdown = 'default';
+                                if (selfIp.allow) {
+                                    portLockdown = selfIp.allow.split(/\s+/);
+                                    if (portLockdown.length === 1 && portLockdown[0].indexOf(':') === -1) {
+                                        portLockdown = portLockdown[0];
+                                    }
+                                }
+
                                 selfIpBody = {
                                     name: selfIp.name,
                                     address: selfIp.address,
                                     vlan: '/Common/' + selfIp.vlan,
-                                    allowService: selfIp.allow ? selfIp.allow.split(/\s+/) : 'default'
+                                    allowService: portLockdown
                                 };
 
                                 promises.push(
