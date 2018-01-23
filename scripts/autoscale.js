@@ -29,11 +29,12 @@
     const AUTOSCALE_PRIVATE_KEY = 'cloudLibsAutoscalePrivate';
     const AUTOSCALE_PRIVATE_KEY_FOLDER = 'CloudLibsAutoscale';
 
-    var fs = require('fs');
-    var q = require('q');
-    var AutoscaleProvider = require('../lib/autoscaleProvider');
-    var util = require('../lib/util');
-    var cryptoUtil = require('../lib/cryptoUtil');
+    const fs = require('fs');
+    const q = require('q');
+    const AutoscaleProvider = require('../lib/autoscaleProvider');
+    const util = require('../lib/util');
+    const cryptoUtil = require('../lib/cryptoUtil');
+
     var runner;
     var logger;
 
@@ -45,23 +46,26 @@
          * Provider is passed in only for testing. In production, provider will be instantiated
          * based on the --cloud option
          *
-         * @param {String[]} argv                - The process arguments.
-         * @param {Ojbect}   [testOpts]          - Options used during testing
-         * @param {Object}   [testOpts.provider] - Mock for provider.
-         * @param {Object}   [testOpts.bigIp]    - Mock for BigIp.
-         * @param {Function} [cb]                - Optional cb to call when done
+         * @param {String[]} argv                        - The process arguments.
+         * @param {Ojbect}   [testOpts]                  - Options used during testing
+         * @param {Object}   [testOpts.autoscleProvider] - Mock for provider.
+         * @param {Object}   [testOpts.bigIp]            - Mock for BigIp.
+         * @param {Function} [cb]                        - Optional cb to call when done
          */
         run: function(argv, testOpts, cb) {
 
             const DEFAULT_LOG_FILE = "/tmp/autoscale.log";
             const ARGS_FILE_ID = 'autoscale_' + Date.now();
 
-            var options = require('commander');
-            var BigIp = require('../lib/bigIp');
-            var Logger = require('../lib/logger');
-            var ipc = require('../lib/ipc');
+            const BigIp = require('../lib/bigIp');
+            const Logger = require('../lib/logger');
+            const dnsProviderFactory = require('../lib/dnsProviderFactory');
+            const ipc = require('../lib/ipc');
+
+            var options = require('./commonOptions');
             var loggerOptions = {};
-            var providerOptions = [];
+            var providerOptions = {};
+            var dnsProviderOptions = {};
             var externalTag = {};
             var bigIp;
             var loggableArgs;
@@ -71,23 +75,23 @@
             var masterBad;
             var masterBadReason;
             var newMaster;
-            var Provider;
-            var provider;
+            var AustoscaleProviderImplementation;
+            var asProvider;
+            var dnsProvider;
             var i;
 
             var KEYS_TO_MASK = ['-p', '--password'];
 
             testOpts = testOpts || {};
 
-            options = require('./commonOptions');
 
             options.autoSync = true;
             options.saveOnAutoSync = true;
 
             try {
                 options = options.getCommonOptions(DEFAULT_LOG_FILE)
-                    .option('--cloud <provider>', 'Cloud provider (aws | azure | etc.)')
-                    .option('--provider-options <cloud_options>', 'Any options that are required for the specific cloud provider. Ex: param1:value1,param2:value2', util.mapArray, providerOptions)
+                    .option('--cloud <cloud_provider>', 'Cloud provider (aws | azure | etc.)')
+                    .option('--provider-options <cloud_options>', 'Options specific to cloud_provider. Ex: param1:value1,param2:value2', util.map, providerOptions)
                     .option('-c, --cluster-action <type>', 'join (join a cluster) | update (update cluster to match existing instances | unblock-sync (allow other devices to sync to us)')
                     .option('--device-group <device_group>', 'Device group name.')
                     .option('    --full-load-on-sync', '    Enable full load on sync. Default false.')
@@ -106,6 +110,10 @@
                     .option('    --license-pool-name <pool_name>', '    Name of BIG-IQ license pool.')
                     .option('    --big-ip-mgmt-address <big_ip_address>', '    IP address or FQDN of BIG-IP management port. Use this if BIG-IP reports an address not reachable from BIG-IQ.')
                     .option('    --big-ip-mgmt-port <big_ip_port>', '    Port for the management address. Use this if the BIG-IP is not reachable from BIG-IQ via the port used in --port')
+                    .option('--dns <dns_provider>', '    Update the specified DNS provider when autoscaling occurs (gtm is the only current provider)')
+                    .option('    --dns-ip-type <address_type>', '    Type of ip address to use (public | private).')
+                    .option('    --dns-app-port <port>', '    Port on which application is listening on for health check')
+                    .option('    --dns-provider-options <dns_provider_options>', '    Options specific to dns_provider. Ex: param1:value1,param2:value2', util.map, dnsProviderOptions)
                     .parse(argv);
 
                 loggerOptions.console = options.console;
@@ -141,11 +149,16 @@
                 }
                 logger.info(loggableArgs[1] + " called with", loggableArgs.join(' '));
 
-                // Get the concrete provider instance
-                provider = testOpts.provider;
-                if (!provider) {
-                    Provider = require('f5-cloud-libs-' + options.cloud).provider;
-                    provider = new Provider({clOptions: options, loggerOptions: loggerOptions});
+                // Get the concrete autoscale provider instance
+                asProvider = testOpts.autoscaleProvider;
+                if (!asProvider) {
+                    AustoscaleProviderImplementation = require('f5-cloud-libs-' + options.cloud).provider;
+                    asProvider = new AustoscaleProviderImplementation({clOptions: options, loggerOptions: loggerOptions});
+                }
+
+                // If updating DNS, get the concrete DNS provider instance
+                if (options.dns) {
+                    dnsProvider = dnsProviderFactory.getDnsProvider(options.dns, {clOptions: options, loggerOptions: loggerOptions});
                 }
 
                 // Save args in restart script in case we need to reboot to recover from an error
@@ -162,11 +175,18 @@
                         return util.saveArgs(argv, ARGS_FILE_ID, ['--wait-for']);
                     })
                     .then(function() {
-                        return provider.init(providerOptions[0], {autoscale: true});
+                        logger.info('Initializing autoscale provider');
+                        return asProvider.init(providerOptions, {autoscale: true});
+                    })
+                    .then(function() {
+                        if (options.dns) {
+                            logger.info('Initializing DNS provider');
+                            return dnsProvider.init(dnsProviderOptions);
+                        }
                     })
                     .then(function() {
                         logger.info('Getting this instance ID.');
-                        return provider.getInstanceId();
+                        return asProvider.getInstanceId();
                     })
                     .then(function(response) {
                         logger.debug('This instance ID:', response);
@@ -176,7 +196,7 @@
                         if (Object.keys(externalTag).length === 0) {
                             externalTag = undefined;
                         }
-                        return provider.getInstances({externalTag: externalTag});
+                        return asProvider.getInstances({externalTag: externalTag});
                     }.bind(this))
                     .then(function (response) {
                         this.instances = response || {};
@@ -198,7 +218,7 @@
                             util.logAndExit('Currently becoming master. Exiting.', 'info');
                         }
 
-                        return provider.putInstance(this.instanceId, this.instance);
+                        return asProvider.putInstance(this.instanceId, this.instance);
                     }.bind(this))
                     .then(function() {
                         if (testOpts.bigIp) {
@@ -221,7 +241,7 @@
                         }
                     }.bind(this))
                     .then(function () {
-                        return provider.bigIpReady();
+                        return asProvider.bigIpReady();
                     }.bind(this))
                     .then(function() {
                         return bigIp.deviceInfo();
@@ -229,7 +249,7 @@
                     .then(function(response) {
                         this.instance.version = response.version;
                         markVersions(this.instances);
-                        return provider.putInstance(this.instanceId, this.instance);
+                        return asProvider.putInstance(this.instanceId, this.instance);
                     }.bind(this))
                     .then(function() {
                         var status = AutoscaleProvider.STATUS_UNKNOWN;
@@ -267,7 +287,7 @@
                             }
                         }
 
-                        return updateMasterStatus.call(this, provider, status);
+                        return updateMasterStatus.call(this, asProvider, status);
                     }.bind(this))
                     .then(function() {
                         // If the master is not visible, check to see if it's been gone
@@ -279,7 +299,7 @@
 
                         if (masterIid) {
                             logger.info('Possible master ID:', masterIid);
-                            return provider.isValidMaster(masterIid, this.instances);
+                            return asProvider.isValidMaster(masterIid, this.instances);
                         }
                         else if (masterBad) {
                             logger.info('Old master no longer valid:', masterBadReason);
@@ -301,7 +321,7 @@
                             // false or undefined validMaster means no masterIid or invalid masterIid
                             if (validMaster === false) {
                                 logger.info('Invalid master ID:', masterIid);
-                                provider.masterInvalidated(masterIid);
+                                asProvider.masterInvalidated(masterIid);
                             }
 
                             // if no master, master is visible or expired, elect, otherwise, wait
@@ -310,7 +330,7 @@
                                 masterBad) {
 
                                 logger.info('Electing master.');
-                                return provider.electMaster(this.instances);
+                                return asProvider.electMaster(this.instances);
                             }
                         }
                     }.bind(this))
@@ -335,26 +355,26 @@
                                     lastStatusChange: now
                                 };
 
-                                return provider.putInstance(this.instanceId, this.instance);
+                                return asProvider.putInstance(this.instanceId, this.instance);
                             }
                         }
                     }.bind(this))
                     .then(function() {
                         if (this.instance.isMaster && newMaster) {
                             this.instance.status = INSTANCE_STATUS_BECOMING_MASTER;
-                            return provider.putInstance(this.instanceId, this.instance);
+                            return asProvider.putInstance(this.instanceId, this.instance);
                         }
                     }.bind(this))
                     .then(function() {
                         if (this.instance.isMaster && newMaster) {
-                            return becomeMaster.call(this, provider, bigIp, options);
+                            return becomeMaster.call(this, asProvider, bigIp, options);
                         }
                     }.bind(this))
                     .then(function(response) {
                         if (this.instance.status === INSTANCE_STATUS_BECOMING_MASTER && response === true) {
                             this.instance.status = INSTANCE_STATUS_OK;
                             logger.silly('Became master');
-                            return provider.putInstance(this.instanceId, this.instance);
+                            return asProvider.putInstance(this.instanceId, this.instance);
                         }
                         else if (response === false) {
                             logger.warn('Error writing master file');
@@ -362,16 +382,16 @@
                     }.bind(this))
                     .then(function() {
                         if (masterIid && this.instance.status === INSTANCE_STATUS_OK) {
-                            return provider.masterElected(masterIid);
+                            return asProvider.masterElected(masterIid);
                         }
                     }.bind(this))
                     .then(function() {
                         if (this.instance.status === INSTANCE_STATUS_OK) {
                             switch(options.clusterAction) {
                                 case 'join':
-                                    return handleJoin.call(this, provider, bigIp, masterIid, masterBad, options);
+                                    return handleJoin.call(this, asProvider, bigIp, masterIid, masterBad, options);
                                 case 'update':
-                                    return handleUpdate.call(this, provider, bigIp, masterIid, masterBad, options);
+                                    return handleUpdate.call(this, asProvider, bigIp, masterIid, masterBad, options);
                                 case 'unblock-sync':
                                     logger.info("Cluster action UNBLOCK-SYNC");
                                     return bigIp.cluster.configSyncIp(this.instance.privateIp);
@@ -383,13 +403,34 @@
                     }.bind(this))
                     .then(function() {
                         if (this.instance.status === INSTANCE_STATUS_OK) {
-                            if (provider.hasFeature(AutoscaleProvider.FEATURE_MESSAGING)) {
+                            if (asProvider.hasFeature(AutoscaleProvider.FEATURE_MESSAGING)) {
                                 logger.info('Checking for messages');
-                                return handleMessages.call(this, provider, bigIp, options);
+                                return handleMessages.call(this, asProvider, bigIp, options);
                             }
                         }
                         else {
                             logger.debug('Instance status not OK. Waiting.', this.instance.status);
+                        }
+                    }.bind(this))
+                    .then(function() {
+                        var instance;
+                        var instanceId;
+                        var instancesForDns;
+
+                        if (options.dns) {
+                            logger.info('Updating DNS');
+                            instancesForDns = [];
+                            for (instanceId in this.instances) {
+                                instance = this.instances[instanceId];
+                                instancesForDns.push(
+                                    {
+                                        name: instance.hostname,
+                                        ip: (options.dnsIpType === 'public' ? instance.publicIp : instance.privateIp),
+                                        port: options.dnsAppPort
+                                    }
+                                );
+                            }
+                            return dnsProvider.update(instancesForDns);
                         }
                     }.bind(this))
                     .catch(function(err) {

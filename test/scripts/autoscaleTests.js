@@ -26,6 +26,8 @@ var icontrolMock;
 var cloudUtilMock;
 var cryptoUtilMock;
 var ipcMock;
+var dnsProviderFactoryMock;
+var gtmDnsProviderMock;
 var childProcessMock;
 var argv;
 var providerMock;
@@ -37,6 +39,7 @@ var exitCode;
 var exitMessage;
 var messages;
 var credentials;
+var functionsCalled;
 var cloudPrivateKeyPath;
 var privateKeyMetadata;
 
@@ -62,7 +65,7 @@ function ProviderMock() {
 }
 
 ProviderMock.prototype.init = function() {
-    this.functionCalls.init = true;
+    this.functionCalls.init = arguments;
     return q();
 };
 
@@ -149,6 +152,8 @@ module.exports = {
 
         fsMock = require('fs');
         childProcessMock = require('child_process');
+        dnsProviderFactoryMock = require('../../lib/dnsProviderFactory');
+        gtmDnsProviderMock = require('../../lib/gtmDnsProvider');
         BigIp = require('../../lib/bigIp');
         cloudUtilMock = require('../../lib/util');
         cryptoUtilMock = require('../../lib/cryptoUtil');
@@ -184,6 +189,7 @@ module.exports = {
 
         // Just resolve right away, otherwise these tests never exit
         ipcMock.once = function() {
+            functionsCalled.ipc.once = arguments;
             return q();
         };
 
@@ -203,6 +209,23 @@ module.exports = {
             return q();
         };
 
+        dnsProviderFactoryMock.getDnsProvider = function() {
+            return gtmDnsProviderMock;
+        };
+
+        gtmDnsProviderMock.functionCalls = {};
+        gtmDnsProviderMock.init = function() {
+            gtmDnsProviderMock.functionCalls.init = arguments;
+            return q();
+        };
+        gtmDnsProviderMock.update = function() {
+            gtmDnsProviderMock.functionCalls.update = arguments;
+        };
+
+        functionsCalled = {
+            ipc: {}
+        };
+
         bigIpMock = new BigIp();
         bigIpMock.init('localhost', 'admin', 'admin')
             .then(function() {
@@ -212,7 +235,7 @@ module.exports = {
 
                 testOptions = {
                     bigIp: bigIpMock,
-                    provider: providerMock
+                    autoscaleProvider: providerMock
                 };
 
                 bigIpMock.functionCalls = {};
@@ -301,10 +324,36 @@ module.exports = {
             });
         },
 
-        testInitCalled: function(test) {
+        testWaitFor: function(test) {
+            argv.push('--wait-for', 'foo');
+
             test.expect(1);
             autoscale.run(argv, testOptions, function() {
-                test.ok(providerMock.functionCalls.init, "init not called");
+                test.strictEqual(functionsCalled.ipc.once[0], 'foo');
+                test.done();
+            });
+        },
+
+        testBackground: function(test) {
+            var runInBackgroundCalled = false;
+            cloudUtilMock.runInBackgroundAndExit = function() {
+                runInBackgroundCalled = true;
+            };
+
+            argv.push('--background');
+
+            test.expect(1);
+            autoscale.run(argv, testOptions, function() {
+                test.ok(runInBackgroundCalled);
+                test.done();
+            });
+        },
+
+        testInitCalled: function(test) {
+            argv.push('--provider-options', 'key1:value1,key2:value2');
+            test.expect(1);
+            autoscale.run(argv, testOptions, function() {
+                test.deepEqual(providerMock.functionCalls.init[0], {key1: 'value1', key2: 'value2'});
                 test.done();
             });
         },
@@ -595,6 +644,121 @@ module.exports = {
                         test.done();
                     });
                 }
+            },
+
+            testGetHostname: function(test) {
+                var hostname = 'myNewHostname';
+
+                instances = {
+                    "one": {
+                        isMaster: false,
+                        hostname: 'host1',
+                        privateIp: '1.2.3.4',
+                        mgmtIp: '1.2.3.4',
+                        providerVisible: true
+                    },
+                    "two": {
+                        isMaster: true,
+                        privateIp: '5.6.7.8',
+                        mgmtIp: '5.6.7.8',
+                        providerVisible: true
+                    }
+                };
+
+                icontrolMock.when(
+                    'list',
+                    '/tm/sys/global-settings',
+                    {
+                        hostname: hostname
+                    }
+                );
+
+                test.expect(1);
+                autoscale.run(argv, testOptions, function() {
+                    test.deepEqual(bigIpMock.functionCalls.createDeviceGroup[2], [hostname]);
+                    test.done();
+                });
+            }
+        },
+
+        testDns: {
+            setUp: function(callback) {
+                argv.push('--dns', 'gtm', '--dns-app-port', '1234');
+
+                instances = {
+                    "one": {
+                        isMaster: false,
+                        hostname: 'host1',
+                        privateIp: '1.2.3.4',
+                        publicIp: '11.12.13.14',
+                        mgmtIp: '1.2.3.4',
+                        providerVisible: true
+                    },
+                    "two": {
+                        isMaster: true,
+                        hostname: 'host2',
+                        privateIp: '5.6.7.8',
+                        publicIp: '15.16.17.18',
+                        mgmtIp: '5.6.7.8',
+                        providerVisible: true
+                    }
+                };
+
+
+                callback();
+            },
+
+            testInitCall: function(test) {
+                test.expect(1);
+                argv.push('--dns-provider-options', 'key1:value1,key2:value2');
+                autoscale.run(argv, testOptions, function() {
+                    test.deepEqual(
+                        gtmDnsProviderMock.functionCalls.init[0],
+                        {
+                            key1: 'value1',
+                            key2: 'value2'
+                        }
+                    );
+                    test.done();
+                });
+            },
+
+            testPrivate: function(test) {
+                argv.push('--dns-ip-type', 'private');
+                autoscale.run(argv, testOptions, function() {
+                    var updatedServers = gtmDnsProviderMock.functionCalls.update[0];
+                    test.strictEqual(updatedServers.length, 2);
+                    test.deepEqual(updatedServers[0], {
+                        name: instances.one.hostname,
+                        ip: instances.one.privateIp,
+                        port: '1234'
+                    });
+                    test.deepEqual(updatedServers[1], {
+                        name: instances.two.hostname,
+                        ip: instances.two.privateIp,
+                        port: '1234'
+                    });
+                    test.done();
+                });
+            },
+
+            testPublic: function(test) {
+                argv.push('--dns-ip-type', 'public');
+                autoscale.run(argv, testOptions, function() {
+                    var updatedServers = gtmDnsProviderMock.functionCalls.update[0];
+                    test.strictEqual(updatedServers.length, 2);
+                    test.deepEqual(updatedServers[0], {
+                        name: instances.one.hostname,
+                        ip: instances.one.publicIp,
+                        port: '1234'
+                    });
+                    test.deepEqual(updatedServers[1], {
+                        name: instances.two.hostname,
+                        ip: instances.two.publicIp,
+                        port: '1234'
+                    });
+                    test.done();
+                });
             }
         }
     },

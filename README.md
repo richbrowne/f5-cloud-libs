@@ -178,41 +178,45 @@ Runs autoscale code to elect master and cluster
     
     Options:
     
-      -h, --help                                  output usage information
-      -V, --version                               output the version number
-      --host <ip_address>                         BIG-IP management IP to which to send commands.
-      -u, --user <user>                           BIG-IP admin user name.
-      -p, --password <password>                   BIG-IP admin user password. Use this or --password-url
-      --password-url <password_url>               URL (file, http(s)) to location that contains BIG-IP admin user password. Use this or --password
-      --password-encrypted                        Indicates that the password is encrypted (either with encryptDataToFile or generatePassword)
-      --port <port>                               BIG-IP management SSL port to connect to. Default 443.
-      --no-reboot                                 Skip reboot even if it is recommended.
-      --background                                Spawn a background process to do the work. If you are running in cloud init, you probably want this option.
-      --signal <signal>                           Signal to send when done. Default ONBOARD_DONE.
-      --wait-for <signal>                         Wait for the named signal before running.
-      --log-level <level>                         Log level (none, error, warn, info, verbose, debug, silly). Default is info.
-      -o, --output <file>                         Log to file as well as console. This is the default if background process is spawned. Default is /tmp/autoscale.log
-      --no-console                                Do not log to console. Default false (log to console).
-      --cloud <provider>                          Cloud provider (aws | azure | etc.)
-      --provider-options <cloud_options>          Any options that are required for the specific cloud provider. Ex: param1:value1,param2:value2
-      -c, --cluster-action <type>                 join (join a cluster) | update (update cluster to match existing instances | unblock-sync (allow other devices to sync to us)
-      --device-group <device_group>               Device group name.
-          --full-load-on-sync                         Enable full load on sync. Default false.
-          --asm-sync                                  Enable ASM sync. Default false. Default false.
-          --network-failover                          Enable network failover. Default false.
-          --no-auto-sync                              Enable auto sync. Default false (auto sync).
-          --no-save-on-auto-sync                      Enable save on sync if auto sync is enabled. Default false (save on auto sync).
-      --block-sync                                If this device is master, do not allow other devices to sync to us. This prevents other devices from syncing to it until we are called again with --cluster-action unblock-sync.
-      --static                                    Indicates that this instance is not autoscaled. Default false (instance is autoscaled)
-      --external-tag <tag>                        If there are instances in the autoscale cluster that are not autoscaled, the cloud tag applied to those instances. Format 'key:<tag_key>,value:<tag_value>'
-      --license-pool                              BIG-IP was licensed from a BIG-IQ license pool. This is so licenses can be revoked when BIG-IPs are scaled in. Supply the following:
-          --big-iq-host <ip_address or FQDN>          IP address or FQDN of BIG-IQ
-          --big-iq-user <user>                        BIG-IQ admin user name
-          --big-iq-password <password>                BIG-IQ admin user password.
-          --big-iq-password-uri <password_uri>        URI (file, http(s), arn) to location that contains BIG-IQ admin user password. Use this or --big-iq-password.
-          --license-pool-name <pool_name>             Name of BIG-IQ license pool.
-          --big-ip-mgmt-address <big_ip_address>      IP address or FQDN of BIG-IP management port. Use this if BIG-IP reports an address not reachable from BIG-IQ.
-          --big-ip-mgmt-port <big_ip_port>            Port for the management address. Use this if the BIG-IP is not reachable from BIG-IQ via the port used in --port
+      -h, --help                                         output usage information
+      -V, --version                                      output the version number
+      --host <ip_address>                                BIG-IP management IP to which to send commands.
+      -u, --user <user>                                  BIG-IP admin user name.
+      -p, --password <password>                          BIG-IP admin user password. Use this or --password-url
+      --password-url <password_url>                      URL (file, http(s)) to location that contains BIG-IP admin user password. Use this or --password
+      --password-encrypted                               Indicates that the password is encrypted (either with encryptDataToFile or generatePassword)
+      --port <port>                                      BIG-IP management SSL port to connect to. Default 443.
+      --no-reboot                                        Skip reboot even if it is recommended.
+      --background                                       Spawn a background process to do the work. If you are running in cloud init, you probably want this option.
+      --signal <signal>                                  Signal to send when done. Default ONBOARD_DONE.
+      --wait-for <signal>                                Wait for the named signal before running.
+      --log-level <level>                                Log level (none, error, warn, info, verbose, debug, silly). Default is info.
+      -o, --output <file>                                Log to file as well as console. This is the default if background process is spawned. Default is /tmp/autoscale.log
+      --no-console                                       Do not log to console. Default false (log to console).
+      --cloud <cloud_provider>                           Cloud provider (aws | azure | etc.)
+      --provider-options <cloud_options>                 Options specific to cloud_provider. Ex: param1:value1,param2:value2
+      -c, --cluster-action <type>                        join (join a cluster) | update (update cluster to match existing instances | unblock-sync (allow other devices to sync to us)
+      --device-group <device_group>                      Device group name.
+          --full-load-on-sync                                Enable full load on sync. Default false.
+          --asm-sync                                         Enable ASM sync. Default false. Default false.
+          --network-failover                                 Enable network failover. Default false.
+          --no-auto-sync                                     Enable auto sync. Default false (auto sync).
+          --no-save-on-auto-sync                             Enable save on sync if auto sync is enabled. Default false (save on auto sync).
+      --block-sync                                       If this device is master, do not allow other devices to sync to us. This prevents other devices from syncing to it until we are called again with --cluster-action unblock-sync.
+      --static                                           Indicates that this instance is not autoscaled. Default false (instance is autoscaled)
+      --external-tag <tag>                               If there are instances in the autoscale cluster that are not autoscaled, the cloud tag applied to those instances. Format 'key:<tag_key>,value:<tag_value>'
+      --license-pool                                     BIG-IP was licensed from a BIG-IQ license pool. This is so licenses can be revoked when BIG-IPs are scaled in. Supply the following:
+          --big-iq-host <ip_address or FQDN>                 IP address or FQDN of BIG-IQ
+          --big-iq-user <user>                               BIG-IQ admin user name
+          --big-iq-password <password>                       BIG-IQ admin user password.
+          --big-iq-password-uri <password_uri>               URI (file, http(s), arn) to location that contains BIG-IQ admin user password. Use this or --big-iq-password.
+          --license-pool-name <pool_name>                    Name of BIG-IQ license pool.
+          --big-ip-mgmt-address <big_ip_address>             IP address or FQDN of BIG-IP management port. Use this if BIG-IP reports an address not reachable from BIG-IQ.
+          --big-ip-mgmt-port <big_ip_port>                   Port for the management address. Use this if the BIG-IP is not reachable from BIG-IQ via the port used in --port
+      --dns <dns_provider>                                   Update the specified DNS provider when autoscaling occurs (gtm is the only current provider)
+          --dns-ip-type <address_type>                       Type of ip address to use (public | private).
+          --dns-app-port <port>                              Port on which application is listening on for health check
+          --dns-provider-options <dns_provider_options>      Options specific to dns_provider. Ex: param1:value1,param2:value2
     
 ### network.js
 

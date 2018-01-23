@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 F5 Networks, Inc.
+ * Copyright 2016-2018 F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,9 @@ module.exports = {
     bigIq5_2LicenseProvider: require('./lib/bigIq5_2LicenseProvider'),
     bigIq5_3LicenseProvider: require('./lib/bigIq5_3LicenseProvider'),
     cryptoUtil: require('./lib/cryptoUtil'),
+    dnsProvider: require('./lib/dnsProvider'),
+    dnsProviderFactory: require('./lib/dnsProviderFactory'),
+    gtmDnsProvider: require('./lib/gtmDnsProvider'),
     localKeyUtil: require('./lib/localKeyUtil'),
     httpUtil: require('./lib/httpUtil'),
     iControl: require('./lib/iControl'),

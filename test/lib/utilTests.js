@@ -154,6 +154,10 @@ module.exports = {
             input = 'hello:goodbye';
             util.map(input, container);
             test.deepEqual(container, {foo: 'bar', hello: 'goodbye', fooz: 'bazz'});
+            input = 'key1:value1,key2:true,key3:false';
+            container = {};
+            util.map(input, container);
+            test.deepEqual(container, {key1: 'value1', key2: true, key3: false});
             test.done();
         },
 
