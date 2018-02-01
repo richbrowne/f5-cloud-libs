@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 'use strict';
 
 module.exports = {
@@ -22,9 +23,9 @@ module.exports = {
     bigIpCluster: require('./lib/bigIpCluster'),
     bigIpOnboard: require('./lib/bigIpOnboard'),
     bigIq: require('./lib/bigIq'),
-    bigIq5_0LicenseProvider: require('./lib/bigIq5_0LicenseProvider'),
-    bigIq5_2LicenseProvider: require('./lib/bigIq5_2LicenseProvider'),
-    bigIq5_3LicenseProvider: require('./lib/bigIq5_3LicenseProvider'),
+    bigIq50LicenseProvider: require('./lib/bigIq50LicenseProvider'),
+    bigIq52LicenseProvider: require('./lib/bigIq52LicenseProvider'),
+    bigIq53LicenseProvider: require('./lib/bigIq53LicenseProvider'),
     cryptoUtil: require('./lib/cryptoUtil'),
     dnsProvider: require('./lib/dnsProvider'),
     dnsProviderFactory: require('./lib/dnsProviderFactory'),

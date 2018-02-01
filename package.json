@@ -16,6 +16,9 @@
   },
   "devDependencies": {
     "coveralls": "^3.0.0",
+    "eslint": "^4.16.0",
+    "eslint-config-airbnb-base": "^12.1.0",
+    "eslint-plugin-import": "^2.8.0",
     "istanbul": "^0.4.5",
     "jsdoc": "^3.4.3",
     "jshint": "latest",
@@ -26,10 +29,11 @@
     "cloudProviderTag": ""
   },
   "scripts": {
+    "lint": "node node_modules/eslint/bin/eslint lib scripts",
     "test": "node_modules/nodeunit/bin/nodeunit --reporter eclipse test/lib test/scripts",
     "coverage": "node node_modules/istanbul/lib/cli.js cover --print detail node_modules/nodeunit/bin/nodeunit test/lib test/scripts",
     "coveralls": "node node_modules/istanbul/lib/cli.js cover node_modules/nodeunit/bin/nodeunit test/lib test/scripts; cat coverage/lcov.info | node_modules/coveralls/bin/coveralls.js",
     "package": "./package.sh",
-    "doc": "./doc.sh; node node_modules/jsdoc/jsdoc.js -c jsdoc.conf"
+    "doc": "./generateUsageDoc.sh; node node_modules/jsdoc/jsdoc.js -c jsdoc.conf"
   }
 }

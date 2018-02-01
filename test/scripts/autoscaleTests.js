@@ -240,6 +240,10 @@ module.exports = {
 
                 bigIpMock.functionCalls = {};
 
+                bigIpMock.ready = function() {
+                    return q();
+                };
+
                 bigIpMock.save = function() {
                     return q();
                 };
@@ -683,7 +687,13 @@ module.exports = {
 
         testDns: {
             setUp: function(callback) {
-                argv.push('--dns', 'gtm', '--dns-app-port', '1234');
+                argv.push('--dns', 'gtm', '--dns-app-port', '1234', '--cluster-action', 'update');
+
+                bigIpMock.cluster.getCmSyncStatus = function() {
+                    return q({
+                        disconnected: []
+                    });
+                };
 
                 instances = {
                     "one": {
@@ -725,6 +735,7 @@ module.exports = {
 
             testPrivate: function(test) {
                 argv.push('--dns-ip-type', 'private');
+
                 autoscale.run(argv, testOptions, function() {
                     var updatedServers = gtmDnsProviderMock.functionCalls.update[0];
                     test.strictEqual(updatedServers.length, 2);

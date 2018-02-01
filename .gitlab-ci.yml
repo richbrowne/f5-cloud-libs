@@ -22,6 +22,7 @@ test_node4:
         - triggers
     script:
         - npm install
+        - npm run lint
         - npm test
 
 test_node6:
@@ -33,6 +34,7 @@ test_node6:
         - triggers
     script:
         - npm install
+        - npm run lint
         - npm test
 
 update_hash:

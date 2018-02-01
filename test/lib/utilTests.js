@@ -16,12 +16,15 @@
 'use strict';
 
 var fs = require('fs');
-var util = require('../../../f5-cloud-libs').util;
 var childProcess = require('child_process');
-var http = require('http');
 var q = require('q');
 
 var UTIL_ARGS_TEST_FILE = 'UTIL_ARGS_TEST_FILE';
+
+var http;
+var httpGet;
+
+var util;
 
 var argv;
 var funcCount;
@@ -69,7 +72,6 @@ var unlinkSyncCalled;
 
 // http mock
 var httpMock;
-var httpGet;
 
 var getSavedArgs = function() {
     return fs.readFileSync('/tmp/rebootScripts/' + UTIL_ARGS_TEST_FILE + '.sh').toString();
@@ -92,6 +94,13 @@ module.exports = {
         fsReaddirSync = fs.readdirSync;
         fsMkdirSync = fs.mkdirSync;
         fsCreateWriteStream = fs.createWriteStream;
+
+        http = require('http');
+
+        httpMock = require('../testUtil/httpMock');
+        httpMock.reset();
+
+        util = require('../../../f5-cloud-libs').util;
 
         callback();
     },
@@ -474,14 +483,19 @@ module.exports = {
         testHttpError: function(test) {
             const message = 'http get error';
 
+            Object.keys(require.cache).forEach(function(key) {
+                delete require.cache[key];
+            });
+
             httpMock = require('../testUtil/httpMock');
             httpMock.reset();
+            httpMock.setError(message);
 
             require.cache.http = {
                 exports: httpMock
             };
 
-            httpMock.setError(message);
+            util = require('../../../f5-cloud-libs').util;
 
             test.expect(1);
             util.download('http://www.example.com/foo')
@@ -499,18 +513,24 @@ module.exports = {
         testHttpErrorFileWritten: function(test) {
             const message = 'http get error';
 
-            fs.existsSync = function() {
-                return true;
-            };
-            fs.unlink = function() {};
+            Object.keys(require.cache).forEach(function(key) {
+                delete require.cache[key];
+            });
+
             httpMock = require('../testUtil/httpMock');
             httpMock.reset();
+            httpMock.setError(message);
 
             require.cache.http = {
                 exports: httpMock
             };
 
-            httpMock.setError(message);
+            util = require('../../../f5-cloud-libs').util;
+
+            fs.existsSync = function() {
+                return true;
+            };
+            fs.unlink = function() {};
 
             test.expect(1);
             util.download('http://www.example.com/foo')
@@ -567,6 +587,10 @@ module.exports = {
 
         testHttp: {
             setUp: function(callback) {
+                Object.keys(require.cache).forEach(function(key) {
+                    delete require.cache[key];
+                });
+
                 httpMock = require('../testUtil/httpMock');
                 httpMock.reset();
 
@@ -574,11 +598,8 @@ module.exports = {
                     exports: httpMock
                 };
 
-                callback();
-            },
+                util = require('../../../f5-cloud-libs').util;
 
-            tearDown: function(callback) {
-                delete require.cache.http;
                 callback();
             },
 
