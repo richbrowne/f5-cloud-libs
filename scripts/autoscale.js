@@ -1056,11 +1056,14 @@
             const sedCommand = "sed -i '/sys dynad key {/ { N ; /\\n[[:space:]]\\+key[[:space:]]*\\$M\\$[^\\n]*/ { N;   /\\n[[:space:]]*}/ { d } } }' /config/bigip_base.conf";
             const loadSysConfigCommand = "load /sys config";
 
+            logger.silly('removing dynad key from base config');
             return util.runShellCommand(sedCommand)
                 .then(function() {
+                    logger.silly('loading sys config');
                     return util.runTmshCommand(loadSysConfigCommand);
                 })
                 .then(function() {
+                    logger.silly('waiting for BIG-IP to be ready');
                     return bigIp.ready();
                 })
                 .catch(function(err) {
