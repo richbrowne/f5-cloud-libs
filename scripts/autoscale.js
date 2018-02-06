@@ -716,38 +716,12 @@
                 }
             })
             .then(function() {
-// TODO: remove this
-                return bigIp.list('/tm/ltm/pool');
-            })
-            .then(function(response) {
-// TODO: remove this
-                logger.info('in become master after load:', response);
-                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
-            })
-            .then(function(response) {
-                // TODO: remove this
-                logger.info('local key in become master after load:', response);
-            })
-            .then(function() {
                 // If we loaded UCS, re-initialize encryption so our keys
                 // match each other
                 if (hasUcs) {
                     return initEncryption.call(this, provider, bigIp);
                 }
             }.bind(this))
-            .then(function() {
-// TODO: remove this
-                return bigIp.list('/tm/ltm/pool');
-            })
-            .then(function(response) {
-// TODO: remove this
-                logger.info('in become master after init encryption:', response);
-                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
-            })
-            .then(function(response) {
-                // TODO: remove this
-                logger.info('local key in become master after init encryption:', response);
-            })
             .then(function() {
                 // Make sure we have our own hostname
                 if (!this.instance.hostname) {
@@ -1133,54 +1107,14 @@
 
                         bigIp.loadUcs(updatedPath, {"no-license": true, "reset-trust": true}, loadUcsOptions)
                             .then(function() {
-                                // TODO: remove this
-                                return bigIp.list('/tm/ltm/pool');
-                            })
-                            .then(function(response) {
-                                // TODO: remove this
-                                logger.info('after load:', response);
-                                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
-                            })
-                            .then(function(response) {
-                                // TODO: remove this
-                                logger.info('local key after load:', response);
-                            })
-                            .then(function() {
                                 // reset-trust on load does not always seem to work
                                 // use a belt-and-suspenders approach and reset now as well
                                 return bigIp.cluster.resetTrust();
                             })
                             .then(function() {
-                                // TODO: remove this
-                                return bigIp.list('/tm/ltm/pool');
-                            })
-                            .then(function(response) {
-                                // TODO: remove this
-                                logger.info('after reset trust:', response);
-                                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
-                            })
-                            .then(function(response) {
-                                // TODO: remove this
-                                logger.info('local key after reset trust:', response);
-                            })
-                            .then(function() {
                                 logger.silly('saving loaded config');
                                 return bigIp.save();
                             })
-                            .then(function() {
-                                // TODO: remove this
-                                return bigIp.list('/tm/ltm/pool');
-                            })
-                            .then(function(response) {
-                                // TODO: remove this
-                                logger.info('after save:', response);
-                                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
-                            })
-                            .then(function(response) {
-                                // TODO: remove this
-                                logger.info('local key after save:', response);
-                            })
-
                             .then(function() {
                                 // Attempt to delete the file, but ignore errors
                                 try {
