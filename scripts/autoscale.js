@@ -722,7 +722,11 @@
             .then(function(response) {
 // TODO: remove this
                 logger.info('in become master after load:', response);
-                return q();
+                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
+            })
+            .then(function(response) {
+                // TODO: remove this
+                logger.info('local key in become master after load:', response);
             })
             .then(function() {
                 // If we loaded UCS, re-initialize encryption so our keys
@@ -738,7 +742,11 @@
             .then(function(response) {
 // TODO: remove this
                 logger.info('in become master after init encryption:', response);
-                return q();
+                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
+            })
+            .then(function(response) {
+                // TODO: remove this
+                logger.info('local key in become master after init encryption:', response);
             })
             .then(function() {
                 // Make sure we have our own hostname
@@ -1131,7 +1139,11 @@
                             .then(function(response) {
                                 // TODO: remove this
                                 logger.info('after load:', response);
-                                return q();
+                                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
+                            })
+                            .then(function(response) {
+                                // TODO: remove this
+                                logger.info('local key after load:', response);
                             })
                             .then(function() {
                                 // reset-trust on load does not always seem to work
@@ -1145,7 +1157,11 @@
                             .then(function(response) {
                                 // TODO: remove this
                                 logger.info('after reset trust:', response);
-                                return q();
+                                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
+                            })
+                            .then(function(response) {
+                                // TODO: remove this
+                                logger.info('local key after reset trust:', response);
                             })
                             .then(function() {
                                 logger.silly('saving loaded config');
@@ -1158,8 +1174,13 @@
                             .then(function(response) {
                                 // TODO: remove this
                                 logger.info('after save:', response);
-                                return q();
+                                return util.runShellCommand('ls /config/filestore/files_d/CloudLibsLocal_d/certificate_key_d/');
                             })
+                            .then(function(response) {
+                                // TODO: remove this
+                                logger.info('local key after save:', response);
+                            })
+
                             .then(function() {
                                 // Attempt to delete the file, but ignore errors
                                 try {
