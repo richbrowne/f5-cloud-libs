@@ -1060,6 +1060,9 @@
                 .then(function() {
                     return util.runTmshCommand(loadSysConfigCommand);
                 })
+                .then(function() {
+                    return bigIp.ready();
+                })
                 .catch(function(err) {
                     logger.warn('preload of ucs failed:', err);
                     throw err;
