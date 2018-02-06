@@ -1054,10 +1054,15 @@
 
         var preLoad = function() {
             const sedCommand = "sed -i '/sys dynad key {/ { N ; /\\n[[:space:]]\\+key[[:space:]]*\\$M\\$[^\\n]*/ { N;   /\\n[[:space:]]*}/ { d } } }' /config/bigip_base.conf";
+            const cpCommand = 'cp /config/bigip_base.conf /tmp/sedded_bigip_base.conf';
             const loadSysConfigCommand = "load /sys config";
 
             logger.silly('removing dynad key from base config');
             return util.runShellCommand(sedCommand)
+                .then(function() {
+                    logger.silly('copying sedded file');
+                    return util.runShellCommand(cpCommand);
+                })
                 .then(function() {
                     logger.silly('loading sys config');
                     return util.runTmshCommand(loadSysConfigCommand);
