@@ -1112,10 +1112,15 @@
                                 return bigIp.cluster.resetTrust();
                             })
                             .then(function() {
+                                logger.silly('saving loaded config');
+                                return bigIp.save();
+                            })
+                            .then(function() {
                                 // Attempt to delete the file, but ignore errors
                                 try {
-                                    fs.unlinkSync(originalPath);
-                                    fs.unlinkSync(updatedPath);
+// TODO: uncomment this
+//                                    fs.unlinkSync(originalPath);
+//                                    fs.unlinkSync(updatedPath);
                                 }
                                 finally {
                                     deferred.resolve();
