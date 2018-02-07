@@ -1304,7 +1304,27 @@ const commonOptions = require('./commonOptions');
 
         const deferred = q.defer();
         let originalFile;
-        let message;
+
+        const preLoad = function () {
+            // eslint-disable-next-line max-len
+            const sedCommand = "sed -i '/sys dynad key {/ { N ; /\\n[[:space:]]\\+key[[:space:]]*\\$M\\$[^\\n]*/ { N;   /\\n[[:space:]]*}/ { d } } }' /config/bigip_base.conf";
+            const loadSysConfigCommand = 'load /sys config';
+
+            logger.silly('removing dynad key from base config');
+            return util.runShellCommand(sedCommand)
+                .then(() => {
+                    logger.silly('loading sys config');
+                    return util.runTmshCommand(loadSysConfigCommand);
+                })
+                .then(() => {
+                    logger.silly('waiting for BIG-IP to be ready');
+                    return bigIp.ready();
+                })
+                .catch((err) => {
+                    logger.warn('preload of ucs failed:', err);
+                    throw err;
+                });
+        };
 
         const doLoad = function () {
             const args = [
@@ -1319,46 +1339,56 @@ const commonOptions = require('./commonOptions');
                 initLocalKeys: true
             };
 
-            childProcess.execFile(updateScript, args, (childProcessErr) => {
-                if (childProcessErr) {
-                    message = `${updateScript} failed: ${childProcessErr}`;
-                    logger.warn(message);
-                    deferred.reject(new Error(message));
-                    return;
-                }
-
-                if (!fs.existsSync(updatedPath)) {
-                    logger.warn(`${updatedPath} does not exist after running ${updateScript}`);
-                    deferred.reject(new Error('updated ucs not found'));
-                    return;
-                }
-
-                // If we're not sharing the password, put our current user back after
-                // load
-                if (!provider.hasFeature(AutoscaleProvider.FEATURE_SHARED_PASSWORD)) {
-                    loadUcsOptions.restoreUser = true;
-                }
-
-                bigIp.loadUcs(updatedPath, { 'no-license': true, 'reset-trust': true }, loadUcsOptions)
-                    .then(() => {
-                        // reset-trust on load does not always seem to work
-                        // use a belt-and-suspenders approach and reset now as well
-                        return bigIp.cluster.resetTrust();
-                    })
-                    .then(() => {
-                        // Attempt to delete the file, but ignore errors
-                        try {
-                            fs.unlinkSync(originalPath);
-                            fs.unlinkSync(updatedPath);
-                        } finally {
-                            deferred.resolve();
+            preLoad()
+                .then(() => {
+                    childProcess.execFile(updateScript, args, (childProcessErr) => {
+                        if (childProcessErr) {
+                            const message = `${updateScript} failed: ${childProcessErr}`;
+                            logger.warn(message);
+                            deferred.reject(new Error(message));
+                            return;
                         }
-                    })
-                    .catch((err) => {
-                        logger.info('error loading ucs', err);
-                        deferred.reject(err);
+
+                        if (!fs.existsSync(updatedPath)) {
+                            logger.warn(`${updatedPath} does not exist after running ${updateScript}`);
+                            deferred.reject(new Error('updated ucs not found'));
+                            return;
+                        }
+
+                        // If we're not sharing the password, put our current user back after
+                        // load
+                        if (!provider.hasFeature(AutoscaleProvider.FEATURE_SHARED_PASSWORD)) {
+                            loadUcsOptions.restoreUser = true;
+                        }
+
+                        bigIp.loadUcs(
+                            updatedPath,
+                            { 'no-license': true, 'reset-trust': true },
+                            loadUcsOptions
+                        )
+                            .then(() => {
+                                // reset-trust on load does not always seem to work
+                                // use a belt-and-suspenders approach and reset now as well
+                                return bigIp.cluster.resetTrust();
+                            })
+                            .then(() => {
+                                // Attempt to delete the file, but ignore errors
+                                try {
+                                    fs.unlinkSync(originalPath);
+                                    fs.unlinkSync(updatedPath);
+                                } finally {
+                                    deferred.resolve();
+                                }
+                            })
+                            .catch((err) => {
+                                logger.info('error loading ucs', err);
+                                deferred.reject(err);
+                            });
                     });
-            });
+                })
+                .catch((err) => {
+                    throw err;
+                });
         };
 
         // If ucsData has a pipe method (is a stream), use it

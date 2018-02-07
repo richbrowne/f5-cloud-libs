@@ -580,6 +580,13 @@ module.exports = {
                     providerMock.getStoredUcs = function() {
                         return q({});
                     };
+                    cloudUtilMock.runShellCommand = function() {
+                        return q();
+                    }
+                    cloudUtilMock.runTmshCommand = function() {
+                        return q();
+                    }
+
                     callback();
                 },
 
