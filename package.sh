@@ -24,7 +24,7 @@ chmod -R 744 scripts/*
 chmod -R 644 scripts/*.js
 chmod -R 644 lib/*
 
-tar -C .. $EXTRA_TAR_ARGS -cvf dist/f5-cloud-libs.tar f5-cloud-libs
+tar -C .. $EXTRA_TAR_ARGS -cf dist/f5-cloud-libs.tar f5-cloud-libs
 
 # Suppress gzips timetamp in the tarball - otherwise the digest hash changes on each
 # commit even if the contents do not change. This causes an infinite loop in the build scripts

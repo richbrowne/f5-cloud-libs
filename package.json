@@ -1,11 +1,19 @@
 {
-  "name": "f5-cloud-libs",
+  "name": "@f5networks/f5-cloud-libs",
   "version": "3.6.2",
-  "description": "Common library code for deploying a BIG-IP in a cloud environment",
+  "description": "Common library code and scripts for deploying a BIG-IP in a cloud environment",
+  "keywords": [
+    "f5",
+    "big-ip",
+    "bigip"
+  ],
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "https://gitswarm.f5net.com/cloudsolutions/f5-cloud-libs.git"
+    "url": "https://github.com/F5Networks/f5-cloud-libs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/F5Networks/f5-cloud-libs/issues"
   },
   "license": "Apache-2.0",
   "dependencies": {
@@ -28,11 +36,12 @@
     "cloudProviderTag": ""
   },
   "scripts": {
-    "lint": "node node_modules/eslint/bin/eslint lib scripts",
-    "test": "node_modules/nodeunit/bin/nodeunit --reporter eclipse test/lib test/scripts",
     "coverage": "node node_modules/istanbul/lib/cli.js cover --print detail node_modules/nodeunit/bin/nodeunit test/lib test/scripts",
     "coveralls": "node node_modules/istanbul/lib/cli.js cover node_modules/nodeunit/bin/nodeunit test/lib test/scripts; cat coverage/lcov.info | node_modules/coveralls/bin/coveralls.js",
+    "doc": "./generateUsageDoc.sh; node node_modules/jsdoc/jsdoc.js -c jsdoc.conf",
+    "lint": "node node_modules/eslint/bin/eslint lib scripts",
     "package": "./package.sh",
-    "doc": "./generateUsageDoc.sh; node node_modules/jsdoc/jsdoc.js -c jsdoc.conf"
+    "test": "node_modules/nodeunit/bin/nodeunit --reporter eclipse test/lib test/scripts",
+    "version": "./setVersion.sh $npm_package_version && git add ."
   }
 }

@@ -11,7 +11,7 @@ if ! npm run lint; then
 fi
 
 echo "Running unit tests"
-if ! npm run test; then
+if ! npm run test -- --reporter minimal; then
     echo
     echo "Rejecting commit: Unit tests failed."
     echo
