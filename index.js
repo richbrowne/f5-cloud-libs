@@ -16,6 +16,7 @@
 
 'use strict';
 
+/* eslint-disable global-require */
 module.exports = {
     activeError: require('./lib/activeError'),
     autoscaleProvider: require('./lib/autoscaleProvider'),
@@ -26,6 +27,7 @@ module.exports = {
     bigIq50LicenseProvider: require('./lib/bigIq50LicenseProvider'),
     bigIq52LicenseProvider: require('./lib/bigIq52LicenseProvider'),
     bigIq53LicenseProvider: require('./lib/bigIq53LicenseProvider'),
+    cloudProviderFactory: require('./lib/cloudProviderFactory'),
     cryptoUtil: require('./lib/cryptoUtil'),
     dnsProvider: require('./lib/dnsProvider'),
     dnsProviderFactory: require('./lib/dnsProviderFactory'),

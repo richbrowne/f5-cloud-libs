@@ -25,6 +25,7 @@ const childProcess = require('child_process');
 
 const BigIp = require('../lib/bigIp');
 const Logger = require('../lib/logger');
+const cloudProviderFactory = require('../lib/cloudProviderFactory');
 const dnsProviderFactory = require('../lib/dnsProviderFactory');
 const ipc = require('../lib/ipc');
 const commonOptions = require('./commonOptions');
@@ -77,7 +78,6 @@ const commonOptions = require('./commonOptions');
             let masterBad;
             let masterBadReason;
             let newMaster;
-            let AustoscaleProviderImplementation;
             let asProvider;
             let dnsProvider;
 
@@ -225,12 +225,13 @@ const commonOptions = require('./commonOptions');
                 // Get the concrete autoscale provider instance
                 asProvider = optionsForTest.autoscaleProvider;
                 if (!asProvider) {
-                    // eslint-disable-next-line global-require
-                    AustoscaleProviderImplementation = require(`f5-cloud-libs-${options.cloud}`).provider;
-                    asProvider = new AustoscaleProviderImplementation({
-                        loggerOptions,
-                        clOptions: options
-                    });
+                    asProvider = cloudProviderFactory.getCloudProvider(
+                        options.cloud,
+                        {
+                            loggerOptions,
+                            clOptions: options
+                        }
+                    );
                 }
 
                 // If updating DNS, get the concrete DNS provider instance

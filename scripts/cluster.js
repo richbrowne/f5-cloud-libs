@@ -20,6 +20,7 @@ const q = require('q');
 const BigIp = require('../lib/bigIp');
 const Logger = require('../lib/logger');
 const ActiveError = require('../lib/activeError');
+const cloudProviderFactory = require('../lib/cloudProviderFactory');
 const ipc = require('../lib/ipc');
 const signals = require('../lib/signals');
 const util = require('../lib/util');
@@ -45,7 +46,6 @@ const commonOptions = require('./commonOptions');
             const loggerOptions = {};
             const optionsForTest = {};
 
-            let Provider;
             let provider;
             let loggableArgs;
             let logger;
@@ -208,11 +208,10 @@ const commonOptions = require('./commonOptions');
 
                 if (options.cloud) {
                     // Get the concrete provider instance
-                    // eslint-disable-next-line global-require
-                    Provider = require(`f5-cloud-libs-${options.cloud}`).provider;
-                    provider = new Provider(
+                    provider = cloudProviderFactory.getCloudProvider(
+                        options.cloud,
                         {
-                            logger,
+                            loggerOptions,
                             clOptions: options
                         }
                     );

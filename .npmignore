@@ -1,4 +1,6 @@
-.vscode
+/.*
+/*.sh
+/jsdoc.conf
 build/
 coverage/
 dist/
